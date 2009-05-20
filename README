@@ -1,0 +1,14 @@
+Command Serializer is intended to help C programmers write custom Web-based applications.  Developing a web-based
+application is broken into 3 parts:
+
+1) Write your application as a command-line driven console application, using getchar(), and such.  Make it possible for
+your application to execute commands in a file.
+2) Run comserial to create a file under /tmp from which your application can read.  Command Serializer will listen for
+TCP connections, just like MySQL, and any text received will be piped through the file to your application.
+3) Write an Apache CGI "script", based on the example apachetool.c file.  Each web query will result in a command being
+written through Command Serializer to your application.
+
+The example application should provide you with a very simple framework for building yor web based app.
+
+Command Serializer is copyright 2009 by Bill Cox, all rights reserved.  It is made available to the public under the
+Lesser Gnu Public License (LGPL).
