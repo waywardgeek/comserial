@@ -3,7 +3,9 @@
 =================================================================================================*/
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdarg.h>
+#include "cgi_util.h"
 
 static char *varBuf = NULL, *valueBuf = NULL;
 static long varBufSize = 42, valueBufSize = 42;
@@ -39,43 +41,44 @@ void print(
 }
 
 /*=================================================================================================
-  Just unencode the string.
+  Just unencode the string.  Do it in place.
 =================================================================================================*/
 void unencode(
-    char *src,
-    char *last,
-    char *dest)
+    char *string)
 {
+    char *p = string;
     int code;
 
-    while(src != last) {
-        if(*src == '+') {
-            *dest = ' ';
-        } else if(*src == '%') {
-            if(sscanf(src+1, "%2x", &code) != 1) code = '?';
-            *dest = code;
-            src += 2;
+    while(*string != '\0') {
+        if(*string == '+') {
+            *p = ' ';
+        } else if(*string == '%') {
+            if(sscanf(string + 1, "%2x", &code) != 1) {
+		code = '?';
+	    }
+            *p = code;
+            string += 2;
 	} else {
-            *dest = *src;
+            *p = *string;
 	}
-        src++;
-	dest++;
+        string++;
+	p++;
     }
-    *dest = '\n';
-    *++dest = '\0';
+    *p = '\0';
 }
 
 /*=================================================================================================
   Read the next variable name and value in the cookie string, and return a pointer to the next
   variable/value pair in the cookie string.
 =================================================================================================*/
-static char *readNextCookie(
-    char *cookies)
+static char *readNextVariableValueCombo(
+    char *string,
+    char separator)
 {
     char c;
     int varPos = 0, valuePos = 0;
 
-    while((c = *cookies++) != '=' && c != '\0') {
+    while((c = *string++) != '=' && c != '\0') {
 	if(varPos + 1 == varBufSize) {
 	    varBufSize <<= 1;
 	    varBuf = (char *)realloc(varBuf, varBufSize*sizeof(char));
@@ -83,7 +86,7 @@ static char *readNextCookie(
 	varBuf[varPos++] = c;
     }
     varBuf[varPos] = '\0';
-    while((c = *cookies++) != ';' && c != '\0') {
+    while((c = *string++) != separator && c != '\0') {
 	if(valuePos + 1 == valueBufSize) {
 	    valueBufSize <<= 1;
 	    valueBuf = (char *)realloc(valueBuf, valueBufSize*sizeof(char));
@@ -91,10 +94,12 @@ static char *readNextCookie(
 	valueBuf[valuePos++] = c;
     }
     valueBuf[valuePos] = '\0';
-    while(*cookies == ' ') {
-	cookies++;
+    while(*string == ' ') {
+	string++;
     }
-    return cookies;
+    unencode(varBuf);
+    unencode(valueBuf);
+    return string;
 }
 
 /*=================================================================================================
@@ -104,6 +109,7 @@ char *readCookie(
     char *varName)
 {
     char *cookies = getenv("HTTP_COOKIE");
+    char *retVal;
 
     if(varBuf == NULL) {
 	varBuf = (char *)calloc(varBufSize, sizeof(char));
@@ -113,9 +119,11 @@ char *readCookie(
 	return NULL;
     }
     while(*cookies != '\0') {
-        cookies = readNextCookie(cookies);
+        cookies = readNextVariableValueCombo(cookies, ';');
         if(!strcmp(varName, varBuf)) {
-            return valueBuf;
+	    retVal = (char *)calloc(strlen(valueBuf) + 1, sizeof(char));
+	    strcpy(retVal, valueBuf);
+            return retVal;
         }
     }
     return NULL;
@@ -137,4 +145,50 @@ char *generateSessionId(void)
     randChars[20] = '\0';
     fclose(randFile);
     return randChars;
+}
+
+/*=================================================================================================
+  Read input.
+=================================================================================================*/
+char *readInput(void)
+{
+    char *lenstr = getenv("CONTENT_LENGTH");
+    char *input;
+    long len;
+
+    if(lenstr == NULL) {
+	print("CONTENT_LENGTH not set");
+	return NULL;
+    }
+    if(sscanf(lenstr,"%ld",&len) != 1 || len > INPUT_MAXLEN) {
+	print("Invalid input length");
+	return NULL;
+    }
+    input = (char *)calloc(len + 1, sizeof(char));
+    fgets(input, len + 1, stdin);
+    return input;
+}
+
+/*=================================================================================================
+  Read an input variable from the input string.
+=================================================================================================*/
+char *readInputVar(
+    char *input,
+    char *varName)
+{
+    char *retVal;
+
+    if(varBuf == NULL) {
+	varBuf = (char *)calloc(varBufSize, sizeof(char));
+	valueBuf = (char *)calloc(valueBufSize, sizeof(char));
+    }
+    while(*input != '\0') {
+        input = readNextVariableValueCombo(input, '&');
+        if(!strcmp(varName, varBuf)) {
+	    retVal = (char *)calloc(strlen(valueBuf) + 1, sizeof(char));
+	    strcpy(retVal, valueBuf);
+            return retVal;
+        }
+    }
+    return NULL;
 }

@@ -1,6 +1,6 @@
-all: example.cgi
+all: login.cgi
 
-example.cgi: example_cgi.c cgi_util.c cgi_util.h
-	gcc example_cgi.c cgi_util.c -o example.cgi
+login.cgi: login_cgi.c cgi_util.c cgi_util.h
+	gcc login_cgi.c cgi_util.c -o login.cgi
 
 
