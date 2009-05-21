@@ -13,12 +13,8 @@ int main(void)
 
     enableDebug("/tmp/log");
     print("Content-Type:text/html;charset=iso-8859-1\n");
-    session = readCookie("sessionId");
-    if(session == NULL) {
-        session = generateSessionId();
-        print("Set-Cookie: sessionId=%s\n", session);
-    }
-    print("\n");
+    session = readSessionId(); /* This must come here so that we can set session cookie */
+    print("\n"); /* This ends the "header" of the response */
     input = readInput();
     if(input == NULL) {
         print("<P>Error in invocation - wrong FORM probably.");

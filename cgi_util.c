@@ -192,3 +192,17 @@ char *readInputVar(
     }
     return NULL;
 }
+
+/*=================================================================================================
+  Read the sessionId cookie, and if not set, set it.  Return the sessionId.
+=================================================================================================*/
+char *readSessionId(void)
+{
+    char *session = readCookie("sessionId");
+
+    if(session == NULL) {
+        session = generateSessionId();
+        print("Set-Cookie: sessionId=%s\n", session);
+    }
+    return session;
+}
