@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include "cgi_util.h"
+#include "cgiutil.h"
 
 static char *varBuf = NULL, *valueBuf = NULL;
 static long varBufSize = 42, valueBufSize = 42;
@@ -14,7 +14,7 @@ static FILE *debugFile = NULL;
 /*=================================================================================================
   Enable debug logging to the file.
 =================================================================================================*/
-void enableDebug(
+void cgiEnableDebug(
     char *logFile)
 {
     debugFile = fopen(logFile, "w");
@@ -23,27 +23,29 @@ void enableDebug(
 /*=================================================================================================
   A print function that can optionally log to a log file while printing.
 =================================================================================================*/
-void print(
+int cgiPrintf(
     char *format,
     ...)
 {
     va_list ap;
     char buffer[256];
+    int retVal;
 
     va_start(ap, format);
     vsprintf(buffer, format, ap);
     va_end(ap);
-    printf("%s", buffer);
+    retVal = printf("%s", buffer);
     if(debugFile != NULL) {
         fprintf(debugFile, "%s", buffer);
         fflush(debugFile);
     }
+    return retVal;
 }
 
 /*=================================================================================================
   Just unencode the string.  Do it in place.
 =================================================================================================*/
-void unencode(
+void cgiUnencode(
     char *string)
 {
     char *p = string;
@@ -54,15 +56,15 @@ void unencode(
             *p = ' ';
         } else if(*string == '%') {
             if(sscanf(string + 1, "%2x", &code) != 1) {
-		code = '?';
-	    }
+                code = '?';
+            }
             *p = code;
             string += 2;
-	} else {
+        } else {
             *p = *string;
-	}
+        }
         string++;
-	p++;
+        p++;
     }
     *p = '\0';
 }
@@ -79,50 +81,50 @@ static char *readNextVariableValueCombo(
     int varPos = 0, valuePos = 0;
 
     while((c = *string++) != '=' && c != '\0') {
-	if(varPos + 1 == varBufSize) {
-	    varBufSize <<= 1;
-	    varBuf = (char *)realloc(varBuf, varBufSize*sizeof(char));
-	}
-	varBuf[varPos++] = c;
+        if(varPos + 1 == varBufSize) {
+            varBufSize <<= 1;
+            varBuf = (char *)realloc(varBuf, varBufSize*sizeof(char));
+        }
+        varBuf[varPos++] = c;
     }
     varBuf[varPos] = '\0';
     while((c = *string++) != separator && c != '\0') {
-	if(valuePos + 1 == valueBufSize) {
-	    valueBufSize <<= 1;
-	    valueBuf = (char *)realloc(valueBuf, valueBufSize*sizeof(char));
-	}
-	valueBuf[valuePos++] = c;
+        if(valuePos + 1 == valueBufSize) {
+            valueBufSize <<= 1;
+            valueBuf = (char *)realloc(valueBuf, valueBufSize*sizeof(char));
+        }
+        valueBuf[valuePos++] = c;
     }
     valueBuf[valuePos] = '\0';
     while(*string == ' ') {
-	string++;
+        string++;
     }
-    unencode(varBuf);
-    unencode(valueBuf);
+    cgiUnencode(varBuf);
+    cgiUnencode(valueBuf);
     return string;
 }
 
 /*=================================================================================================
   Read a cookie variable.  Return NULL if not set.
 =================================================================================================*/
-char *readCookie(
+char *cgiReadCookie(
     char *varName)
 {
     char *cookies = getenv("HTTP_COOKIE");
     char *retVal;
 
     if(varBuf == NULL) {
-	varBuf = (char *)calloc(varBufSize, sizeof(char));
-	valueBuf = (char *)calloc(valueBufSize, sizeof(char));
+        varBuf = (char *)calloc(varBufSize, sizeof(char));
+        valueBuf = (char *)calloc(valueBufSize, sizeof(char));
     }
     if(cookies == NULL) {
-	return NULL;
+        return NULL;
     }
     while(*cookies != '\0') {
         cookies = readNextVariableValueCombo(cookies, ';');
         if(!strcmp(varName, varBuf)) {
-	    retVal = (char *)calloc(strlen(valueBuf) + 1, sizeof(char));
-	    strcpy(retVal, valueBuf);
+            retVal = (char *)calloc(strlen(valueBuf) + 1, sizeof(char));
+            strcpy(retVal, valueBuf);
             return retVal;
         }
     }
@@ -132,7 +134,7 @@ char *readCookie(
 /*=================================================================================================
   Generate a random session ID.
 =================================================================================================*/
-char *generateSessionId(void)
+static char *generateSessionId(void)
 {
     FILE *randFile = fopen("/dev/urandom", "r");
     static char randChars[21];
@@ -150,19 +152,19 @@ char *generateSessionId(void)
 /*=================================================================================================
   Read input.
 =================================================================================================*/
-char *readInput(void)
+char *cgiReadInput(void)
 {
     char *lenstr = getenv("CONTENT_LENGTH");
     char *input;
     long len;
 
     if(lenstr == NULL) {
-	print("CONTENT_LENGTH not set");
-	return NULL;
+        cgiPrintf("CONTENT_LENGTH not set");
+        return NULL;
     }
-    if(sscanf(lenstr,"%ld",&len) != 1 || len > INPUT_MAXLEN) {
-	print("Invalid input length");
-	return NULL;
+    if(sscanf(lenstr,"%ld",&len) != 1 || len > CGI_INPUT_MAXLEN) {
+        cgiPrintf("Invalid input length");
+        return NULL;
     }
     input = (char *)calloc(len + 1, sizeof(char));
     fgets(input, len + 1, stdin);
@@ -172,21 +174,21 @@ char *readInput(void)
 /*=================================================================================================
   Read an input variable from the input string.
 =================================================================================================*/
-char *readInputVar(
+char *cgiReadInputVar(
     char *input,
     char *varName)
 {
     char *retVal;
 
     if(varBuf == NULL) {
-	varBuf = (char *)calloc(varBufSize, sizeof(char));
-	valueBuf = (char *)calloc(valueBufSize, sizeof(char));
+        varBuf = (char *)calloc(varBufSize, sizeof(char));
+        valueBuf = (char *)calloc(valueBufSize, sizeof(char));
     }
     while(*input != '\0') {
         input = readNextVariableValueCombo(input, '&');
         if(!strcmp(varName, varBuf)) {
-	    retVal = (char *)calloc(strlen(valueBuf) + 1, sizeof(char));
-	    strcpy(retVal, valueBuf);
+            retVal = (char *)calloc(strlen(valueBuf) + 1, sizeof(char));
+            strcpy(retVal, valueBuf);
             return retVal;
         }
     }
@@ -196,13 +198,13 @@ char *readInputVar(
 /*=================================================================================================
   Read the sessionId cookie, and if not set, set it.  Return the sessionId.
 =================================================================================================*/
-char *readSessionId(void)
+char *cgiReadSessionId(void)
 {
-    char *session = readCookie("sessionId");
+    char *session = cgiReadCookie("sessionId");
 
     if(session == NULL) {
         session = generateSessionId();
-        print("Set-Cookie: sessionId=%s\n", session);
+        cgiPrintf("Set-Cookie: sessionId=%s\n", session);
     }
     return session;
 }

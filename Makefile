@@ -1,10 +1,10 @@
-all: login.cgi client server
+all: login.cgi
 
-login.cgi: login_cgi.c cgi_util.c cgi_util.h
-	gcc login_cgi.c cgi_util.c -o login.cgi
+login.cgi: login_cgi.c cgiutil.c cgiutil.h
+	gcc login_cgi.c cgiutil.c -o login.cgi
 
-server: server.c
-	gcc server.c -o server
+#server: server.c
+	#gcc server.c -o server
 
-client: client.c
-	gcc client.c -o client
+#client: client.c
+	#gcc client.c -o client

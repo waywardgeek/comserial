@@ -4,24 +4,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include "cgi_util.h"
+#include "cgiutil.h"
 
 int main(void)
 {
     char *input, *session, *userName, *password;
     FILE *f;
 
-    enableDebug("/tmp/log");
-    print("Content-Type:text/html;charset=iso-8859-1\n");
-    session = readSessionId(); /* This must come here so that we can set session cookie */
-    print("\n"); /* This ends the "header" of the response */
-    input = readInput();
+    cgiEnableDebug("/tmp/log");
+    cgiPrintf("Content-Type:text/html;charset=iso-8859-1\n");
+    session = cgiReadSessionId(); /* This must come here so that we can set session cookie */
+    cgiPrintf("\n"); /* This ends the "header" of the response */
+    input = cgiReadInput();
     if(input == NULL) {
-        print("<P>Error in invocation - wrong FORM probably.");
+        cgiPrintf("<P>Error in invocation - wrong FORM probably.");
     } else {
-	userName = readInputVar(input, "user");
-	password = readInputVar(input, "password");
-	print("User = %s, password = %s", userName, password);
+        userName = cgiReadInputVar(input, "user");
+        password = cgiReadInputVar(input, "password");
+        cgiPrintf("User = %s, password = %s", userName, password);
     }
     return 0;
 }
