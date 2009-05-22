@@ -1,4 +1,4 @@
-/*=================================================================================================
+/*--------------------------------------------------------------------------------------------------
   This is a server-side module which creates a file socket for communication with multiple
   clients, typically Apache scripts responding to an HTTP request.  A simple printf/getc style
   interface is presented to the server which merges all client communication into one input and
@@ -37,7 +37,7 @@
       int coStartServer(char *fileSocketPath);
       void coStopServer(void);
 
-=================================================================================================*/
+--------------------------------------------------------------------------------------------------*/
 
 int coStartServer(char *fileSocketPath);
 void coStopServer(void);

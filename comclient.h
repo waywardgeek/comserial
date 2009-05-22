@@ -1,4 +1,4 @@
-/*=================================================================================================
+/*--------------------------------------------------------------------------------------------------
   The client communicates with the server using:
 
       coSendMessage(char *format, ...);
@@ -13,10 +13,12 @@
 
       int coStartClient(char *fileSocketPath, char *sessionId);
       void coStopClient(void);
-=================================================================================================*/
+--------------------------------------------------------------------------------------------------*/
 
 #define CO_MAX_MESSAGE_LENGTH 4096
 int coStartClient(char *fileSocketPath, char *sessionId);
 void coStopClient(void);
 void coSendMessage(char *format, ...);
+/* Note that a pointer to a static buffer is returned, which will be over-written by the next
+   call to coReadMessage.  It ok to modify the return value in-place. */
 char *coReadMessage(void);

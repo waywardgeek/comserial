@@ -11,10 +11,12 @@
 
 static char *coSessionId;
 static int coSockfd;
+static char *coMessage;
+static int coMessageLength[CO_MAX_MESSAGE_LENGTH]; 
 
-/*=================================================================================================
+/*--------------------------------------------------------------------------------------------------
   Start the client.  Connect to the server's file socket, and return non-zero on success.
-=================================================================================================*/
+--------------------------------------------------------------------------------------------------*/
 int coStartClient(
     char *fileSocketPath,
     char *sessionId)
@@ -34,20 +36,22 @@ int coStartClient(
     }
     coSessionId = calloc(strlen(sessionId) + 1, sizeof(char));
     strcpy(coSessionId, sessionId);
+    write(coSockfd, coSessionId, strlen(coSessionId));
+    write(coSockfd, "\0", 1);
     return 1;
 }
 
-/*=================================================================================================
+/*--------------------------------------------------------------------------------------------------
   Stop the client.  Disconect from the server's file socket.
-=================================================================================================*/
+--------------------------------------------------------------------------------------------------*/
 void coStopClient(void)
 {
     close(coSockfd);
 }
 
-/*=================================================================================================
+/*--------------------------------------------------------------------------------------------------
   Send a message to the server.
-=================================================================================================*/
+--------------------------------------------------------------------------------------------------*/
 void coSendMessage(
     char *format,
     ...)
@@ -59,40 +63,23 @@ void coSendMessage(
     va_start(ap, format);
     length = vsnprintf(buffer, CO_MAX_STRING_LENGTH, format, ap);
     va_end(ap);
-    write(coSockfd, coSessionId, strlen(coSessionId));
-    write(coSockfd, " ", 1);
     write(coSockfd, buffer, length + 1); /* Include terminating '\0' */
 }
 
-/*=================================================================================================
+/*--------------------------------------------------------------------------------------------------
   Send a message to the server.
-=================================================================================================*/
-char *coReadMessage(void);
-
-int main()
+--------------------------------------------------------------------------------------------------*/
+char *coReadMessage(void)
 {
-    int         sockfd;
-    int         len;
-    struct sockaddr_un address;
-    int         result;
-    char        ch       = 'A';
+    char c;
+    int messagePos = 0;
 
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-
-    address.sun_family = AF_UNIX;
-    strcpy(address.sun_path, "server_socket");
-    len = sizeof(address);
-
-    result = connect(sockfd, (struct sockaddr*)&address, len);
-
-    if(result == -1) {
-        perror("oops:  client1");
-        exit(1);
+    while(read(coSockfd, &c, 1) == 1) {
+        if(messagePos == CO_MAX_MESSAGE_LENGTH) {
+            perror("Message too long");
+            exit(1);
+        }
+        coMessage[messagePos++] = c;
     }
-
-    write(sockfd, &ch, 1);
-    read(sockfd, &ch, 1);
-    printf("char from server = %c\n", ch);
-    close(sockfd);
-    exit(0);
+    return coMessage;
 }
