@@ -12,12 +12,12 @@
 static char *coSessionId;
 static int coSockfd;
 static char *coMessage;
-static int coMessageLength[CO_MAX_MESSAGE_LENGTH]; 
+static int coMessageSize;
 
 /*--------------------------------------------------------------------------------------------------
   Start the client.  Connect to the server's file socket, and return non-zero on success.
 --------------------------------------------------------------------------------------------------*/
-int coStartClient(
+void coStartClient(
     char *fileSocketPath,
     char *sessionId)
 {
@@ -38,7 +38,8 @@ int coStartClient(
     strcpy(coSessionId, sessionId);
     write(coSockfd, coSessionId, strlen(coSessionId));
     write(coSockfd, "\0", 1);
-    return 1;
+    coMessageSize = 42;
+    coMessage = calloc(coMessageSize, sizeof(char));
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -75,11 +76,12 @@ char *coReadMessage(void)
     int messagePos = 0;
 
     while(read(coSockfd, &c, 1) == 1) {
-        if(messagePos == CO_MAX_MESSAGE_LENGTH) {
-            perror("Message too long");
-            exit(1);
+        if(messagePos + 1 == coMessageSize) {
+            coMessageSize <<= 1;
+            coMessage = (char *)realloc(coMessage, coMessageSize*sizeof(char));
         }
         coMessage[messagePos++] = c;
     }
+    coMessage[messagePos] = '\0';
     return coMessage;
 }

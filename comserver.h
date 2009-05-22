@@ -4,16 +4,9 @@
   interface is presented to the server which merges all client communication into one input and
   one output stream.  The point is to allow console apps to serve as the back-end engines to
   Apache without the hassle of managing network connections, multiple threads, or 'select' loops.
-  Communication between server and client is done one command at a time.
-
-  All messages between client and server are of the form:
-
-      sessionId &text message&
-
-  The sessionId is any string not containing spaces, and is terminated by a single space.  The
-  text message is encoded such that ampersands are replaced with % escapes.  However, the user
-  does not need to worry about message format, because the server and client communicate through
-  higher level functions.
+  Communication between server and client is done one command at a time.  Commands are '\0'
+  terminated.  The first command from a client must be it's sessionId.  After that, any
+  zero-terminated string is a valid message.
 
   The server reacts to client messages with:
 
@@ -39,7 +32,7 @@
 
 --------------------------------------------------------------------------------------------------*/
 
-int coStartServer(char *fileSocketPath);
+void coStartServer(char *fileSocketPath);
 void coStopServer(void);
 char *coStartResponse(void);
 int coPrintf(char *format, ...);
