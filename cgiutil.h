@@ -1,5 +1,7 @@
 /* Just to keep responses sane, we limit POST input size. */
 #define CGI_INPUT_MAXLEN 100000000
+/* Max length of message created with cgiPrintf */
+#define CGI_MAX_STRING_LENGTH 4096
 
 /* Calling this causes all text printed by cgiPrintf to be logged to the log file */
 void cgiEnableDebug(char *logFile);

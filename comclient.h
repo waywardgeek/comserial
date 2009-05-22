@@ -15,7 +15,8 @@
       void coStopClient(void);
 =================================================================================================*/
 
+#define CO_MAX_MESSAGE_LENGTH 4096
 int coStartClient(char *fileSocketPath, char *sessionId);
 void coStopClient(void);
-coSendMessage(char *format, ...);
+void coSendMessage(char *format, ...);
 char *coReadMessage(void);

@@ -28,11 +28,11 @@ int cgiPrintf(
     ...)
 {
     va_list ap;
-    char buffer[256];
+    char buffer[CGI_MAX_STRING_LENGTH];
     int retVal;
 
     va_start(ap, format);
-    vsprintf(buffer, format, ap);
+    vsnprintf(buffer, CGI_MAX_STRING_LENGTH, format, ap);
     va_end(ap);
     retVal = printf("%s", buffer);
     if(debugFile != NULL) {
