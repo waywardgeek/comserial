@@ -36,5 +36,5 @@ void coStartServer(char *fileSocketPath);
 void coStopServer(void);
 char *coStartResponse(void);
 int coPrintf(char *format, ...);
-coCompleteResponse(void);
-char coGetc(void):
+void coCompleteResponse(void);
+int coGetc(void):

@@ -3,26 +3,28 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <stdio.h>
+#include "comserver.h"
+#include "comclient.h" /* for max message length */
 
-struct clientStruct;
+struct coClientStruct;
 typedef unsigned int uint;
-typedef struct clientStruct *client;
+typedef struct coClientStruct *client;
 
-struct clientStruct {
+struct coClientStruct {
     int sockfd;
-    char lineBuf[CO_MAX_MESSAGE_SIZE];
-    uint lineSize;
-    uint linePos;
+    char *message;
+    uint messageSize, messageLength;
+    uint messagePos;
     char *sessionId;
-    uint hash;
-    client next;
 };
 
-static client *coClientTable;
-static uint coClientTableSize = 32;
+static coClient coFirstClient = NULL, coLastClient = NULL;
+static coClient *coClientTable;
+static uint coClientTableSize = 16;
 static uint coNumClients = 0;
 static int coServerSockfd;
 static char *coSocketPath;
+static coClient coCurrentClient;
 
 /*--------------------------------------------------------------------------------------------------
   Set a file descriptor to be non-blocking.  This allows accept to return right away, without
@@ -51,13 +53,12 @@ static void setSocketNonBlocking(
 void coStartServer(
     char *fileSocketPath)
 {
-    int         serverLen;
+    int serverLen;
     struct sockaddr_un serverAddress;
 
     unlink(fileSocketPath);
     coServerSockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     setSocketNonBlocking(coServerSockfd, 1);
-    int socket,
     serverAddress.sun_family = AF_UNIX;
     strcpy(serverAddress.sun_path, fileSocketPath);
     serverLen = strlen(serverAddress) + 1;
@@ -65,9 +66,10 @@ void coStartServer(
         perror("failed to bind socket");
         exit(1);
     }
-    listen(server_sockfd, 5);
+    listen(coServerSockfd, 5);
     coSocketPath = calloc(strlen(fileSocketPath) + 1, sizeof(char));
     strcpy(soSocketPath, fileSocketPath);
+    coClientTable = (coClient *)calloc(coClientTableSize, sizeof(coClient));
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -77,7 +79,114 @@ void coStopServer(void)
 {
     unlink(soSocketPath);
     free(soSocketPath);
+    free(coClientTable);
     close(soServerSockfd);
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Accept pending connections on our listening port.  Return it's socket file descriptor.
+--------------------------------------------------------------------------------------------------*/
+static int acceptConnection(void)
+{
+    struct sockaddr_un clientAddress;
+    int length = sizeof(clientAddress);
+    int clientSockfd = accept(coServerSockfd, (struct sockaddr*)&clientAddress, &length);
+
+    if(clientSockfd < 0)  {
+        perror("Failed to accept socket");
+        exit(1);
+    }
+    setSocketNonBlocking(clientSockfd, true);
+    return clientSockfd;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Accept pending connections on our listening port.  Create a new client object for it.
+--------------------------------------------------------------------------------------------------*/
+static void acceptNewClient(void)
+{
+    int sockfd = acceptConnection(void);
+    coClient client = (coClient)calloc(1, sizeof(struct coClientStruct));
+
+    client->sockfd = sockfd;
+    client->messageSize = 42;
+    client->message = (char *)calloc(client->messageSize, sizeof(char));
+    if(sockfd >= coClientTableSize) {
+        coClientTableSize = sockfd + (sockfd >> 1);
+        coClientTable = (coClient *)realloc(coClientTable, coClientTableSize*sizeof(coClient));
+    }
+    coClientTable[sockfd] = client;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Read some bytes from the socket, and incrementally build messages with them.  When we have
+  completed messages, process them with bsProcessMessageCallback.
+--------------------------------------------------------------------------------------------------*/
+static void readMessage(
+    bsConnection connection)
+{
+    ssize_t xByte;
+
+    if(length <= 0) {
+        if(errno == EAGAIN) {
+            /* I don't know why sometimes sockets that have ID_ISSET true can't be read yet */
+            return;
+        }
+        if(length == 0) {
+            bsConnectionClose(connection, utSprintf("Connection closed to IP %s:%u",
+                bsConnectionGetIp(connection), bsConnectionGetPort(connection)));
+        } else {
+            bsLogLibError("Failed to read from socket");
+            bsConnectionClose(connection, "");
+        }
+        return;
+    }
+    for(xByte = 0; xByte < length; xByte++) {
+        if(!pushByteIntoConnection(connection, buf[xByte])) {
+            return;
+        }
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  See if any message is complete, and if so, and return it.
+--------------------------------------------------------------------------------------------------*/
+static char *readMessage(
+    fd_set readSockets)
+{
+    coClient client, readyClient = NULL;
+    int xClient;
+    char buf[CO_MAX_MESSAGE_LENGTH];
+    ssize_t length;
+
+    for(xClient = 0; xClient < coClientTableSize; xClient++) {
+        client = coClientTable(xClient);
+        if(client != NULL) {
+            if(FD_ISSET(xClient, &readSockets)) {
+                length = read(xClient, buf, CO_MAX_MESSAGE_LENGTH);
+                if(length <= 0) {
+                    /* Close client */
+                    close(xClient);
+                    free(client);
+                    coClientTable[xClient] = NULL;
+                    // temp: need to indicate to server that client has gone away
+                } else {
+                    if(length + client->messageLength >= client->messageSize) {
+                        client->messageSize = length + client->messageLength + (client->messageSize >> 1);
+                        client->message = (char *)realloc(client->message, client->messageSize*sizeof(char));
+                    }
+                    strncpy(client->message + client->messageLength, buf, length);
+                    client->messageLength += length;
+                    if(client->message[client->messageLength - 1] == '\0') {
+                        /* Completed message */
+                        readyClient = client;
+                        client->messagePos = 0;
+                    }
+                }
+            }
+        }
+    }
+    return readyClient;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -86,118 +195,73 @@ void coStopServer(void)
 --------------------------------------------------------------------------------------------------*/
 char *coStartResponse(void)
 {
-    for(;;) {
-        char ch;
-
-        client_sockfd = accept(server_sockfd, (struct sockaddr*)&client_address, &client_len);
-
-        read(client_sockfd, &ch, 1);
-        ++ch;
-        write(client_sockfd, &ch, 1);
-        close(client_sockfd);
-    }
-
-    fd_set readSockets, writeSockets;
+    coClient client;
+    fd_set readSockets;
     struct timeval tv;
-    int maxSocket = bsSocketGetNumber(bsListeningSocket);
+    int maxSocket;
     int numActiveSockets;
 
-    if(bsCommandListeningSocket != bsSocketNull) {
-        maxSocket = utMax(maxSocket, bsSocketGetNumber(bsCommandListeningSocket));
-    }
-    maxSocket = utMax(maxSocket, bsSocketGetNumber(bsInteractiveInputSocket));
-    maxSocket = utMax(maxSocket, bsSocketGetNumber(bsInteractiveOutputSocket));
-    FD_ZERO(&readSockets);
-    FD_ZERO(&writeSockets);
-    addWriteMessagesToSet(&writeSockets);
-    bsForeachRootTorrent(bsTheRoot, torrent) {
-        bsForeachTorrentConnection(torrent, connection) {
-            socket = bsConnectionGetSocket(connection);
-            maxSocket = utMax(bsSocketGetNumber(socket), maxSocket);
-            FD_SET(bsSocketGetNumber(socket), &readSockets);
-        } bsEndForeachTorrentConnection;
-    } bsEndForeachRootTorrent;
-    bsForeachRootPendingConnection(bsTheRoot, connection) {
-        socket = bsConnectionGetSocket(connection);
-        maxSocket = utMax(bsSocketGetNumber(socket), maxSocket);
-        FD_SET(bsSocketGetNumber(socket), &readSockets);
-    } bsEndForeachRootPendingConnection;
-    FD_SET(bsSocketGetNumber(bsListeningSocket), &readSockets);
-    if(bsCommandPort != 0) {
-        FD_SET(bsSocketGetNumber(bsCommandListeningSocket), &readSockets);
-    }
-    if(bsInteractiveInputSocket != bsSocketNull) {
-        FD_SET(bsSocketGetNumber(bsInteractiveInputSocket), &readSockets);
-    }
-    if(bsInteractiveOutputSocket != bsSocketNull && bsOutputBufPos != bsOutputBytesWritten) {
-        FD_SET(bsSocketGetNumber(bsInteractiveOutputSocket), &writeSockets);
-    }
-    /* Wait up to 2 seconds. */
-    tv.tv_sec = 2;
-    tv.tv_usec = 0;
-    utIfVerbose(3) {
-        utDebug("Calling select...\n");
-    }
-    bsUnlockDatabaseAccess();
-    numActiveSockets = select(maxSocket + 1, &readSockets, &writeSockets, NULL, &tv);
-    bsLockDatabaseAccess();
-    if(numActiveSockets < 0) {
-        bsLogLibError("Select error");
-        return false;
-    }
-    sendMessages(writeSockets);
-    readMessages(readSockets);
-    if(bsCommandPort != 0 && FD_ISSET(bsSocketGetNumber(bsCommandListeningSocket), &readSockets)) {
-        bsAcceptCommandConnection();
-    }
-    if(FD_ISSET(bsSocketGetNumber(bsListeningSocket), &readSockets)) {
-        bsAcceptPendingConnection();
-    }
-    if(bsOutputBufPos != bsOutputBytesWritten &&
-            FD_ISSET(bsSocketGetNumber(bsInteractiveOutputSocket), &writeSockets)) {
-        writeToInteractiveOutput();
-    }
-    if(FD_ISSET(bsSocketGetNumber(bsInteractiveInputSocket), &readSockets)) {
-        return bsProcessCommands();
-    }
-    return true;
+    do {
+        maxSocket = coServerSockfd;
+        FD_ZERO(&readSockets);
+        for(client = coFirstClient; client != NUll; client = client->next) {
+            maxSocket = utMax(client->sockfd, maxSocket);
+            FD_SET(client->sockfd, &readSockets);
+        }
+        FD_SET(coServerSockfd, &readSockets);
+        /* Wait up to 2 seconds. */
+        tv.tv_sec = 2;
+        tv.tv_usec = 0;
+        numActiveSockets = select(maxSocket + 1, &readSockets, NULL, NULL, &tv);
+        if(numActiveSockets < 0) {
+            perror("Select error");
+            exit(1);
+        }
+        if(FD_ISSET(coServerSockfd, &readSockets)) {
+            acceptNewClient();
+        }
+        client = readMessage(readSockets);
+    } while(client == NULL);
+    coCurrentClient = client;
+    return client->sessionId;
 }
 
-int coPrintf(char *format, ...);
-coCompleteResponse(void);
-char coGetc(void):
-
-int main(
-    int argc,
-    char **argv)
+/*--------------------------------------------------------------------------------------------------
+  Read a character from the active client's message buffer.
+--------------------------------------------------------------------------------------------------*/
+int coGetc(void)
 {
-    int         server_sockfd;
-    int         client_sockfd;
-    int         server_len;
-    int         client_len;
-    struct sockaddr_un server_address;
-    struct sockaddr_un client_address;
-
-    unlink("server_socket");
-    server_sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-
-    server_address.sun_family = AF_UNIX;
-    strcpy(server_address.sun_path, "server_socket");
-    server_len = sizeof(server_address);
-    client_len = sizeof(client_address); //get byte length of client address
-    bind(server_sockfd, (struct sockaddr*)&server_address, server_len);
-
-    listen(server_sockfd, 5);
-    for(;;) {
-        char ch;
-
-        // printf("server waiting\n");
-
-        client_sockfd = accept(server_sockfd, (struct sockaddr*)&client_address, &client_len);
-
-        read(client_sockfd, &ch, 1);
-        ++ch;
-        write(client_sockfd, &ch, 1);
-        close(client_sockfd);
+    if(coCurrentClient->messagePos == coCurrentClient->messageLength) {
+        return EOF;
     }
+    return coCurrentClient->message[(coCurrentClient->messagePos)++];
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Read a character from the active client's message buffer.
+--------------------------------------------------------------------------------------------------*/
+int coPrintf(
+    char *format,
+    ...)
+{
+    va_list ap;
+    char buffer[CO_MAX_MESSAGE_LENGTH];
+    int length;
+
+    va_start(ap, format);
+    length = vsnprintf(buffer, CO_MAX_MESSAGE_LENGTH, format, ap);
+    va_end(ap);
+    //temp - fix this to use local write buffers that are driven with select
+    // this will fail if the client is not ready for a write
+    write(coCurrentClient->sockfd, buffer, length);
+    return length;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Just send the '\0' to terminate the message.
+--------------------------------------------------------------------------------------------------*/
+void coCompleteResponse(void)
+{
+    write(coCurrentClient->sockfd, "", 1);
+    coCurrentClient = NULL;
 }
