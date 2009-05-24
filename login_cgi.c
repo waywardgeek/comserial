@@ -5,10 +5,11 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include "cgiutil.h"
+#include "comclient.h"
 
 int main(void)
 {
-    char *input, *session, *userName, *password;
+    char *input, *session, *userName, *password, *response;
     FILE *f;
 
     cgiEnableDebug("/tmp/log");
@@ -21,7 +22,11 @@ int main(void)
     } else {
         userName = cgiReadInputVar(input, "user");
         password = cgiReadInputVar(input, "password");
-        cgiPrintf("User = %s, password = %s", userName, password);
+        coStartClient("/tmp/test_socket", session);
+        coSendMessage("login %s %s", userName, password);
+        response = coReadMessage();
+        cgiPrintf("%s", response);
+        coStopClient();
     }
     return 0;
 }

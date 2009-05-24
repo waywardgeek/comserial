@@ -1,10 +1,7 @@
-all: login.cgi
+all: login.cgi passwdserver
 
-login.cgi: login_cgi.c cgiutil.c cgiutil.h
-	gcc login_cgi.c cgiutil.c -o login.cgi
+login.cgi: login_cgi.c cgiutil.c cgiutil.h comserial.c comserial.h
+	gcc login_cgi.c cgiutil.c comserial.c -o login.cgi
 
-#server: server.c
-	#gcc server.c -o server
-
-#client: client.c
-	#gcc client.c -o client
+passwdserver: passwdserver.c comserver.c comserver.h comclient.h
+	gcc passwdserver.c comserver.c -o passwdserver.c
