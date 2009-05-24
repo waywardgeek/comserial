@@ -5,7 +5,7 @@ Developing a web-based application is broken into 3 parts:
 2) Link in libcomserver.a into your application, and modify your code to use coGetc and coPrintf.
 3) Write an Apache CGI "script", based on the example login_cgi.c file, which links in libcomclient.a
 
-The example_backend.c application should provide you with a very simple framework for building yor
+The passwdserver.c application should provide you with a very simple framework for building yor
 web based app. and login_cgi.c should provide a decent example for writing a CGI "script" in C.
 Please read comserver.h and comclient.h for a detailed description of the interface to the two
 libraries.
