@@ -208,3 +208,4 @@ char *cgiReadSessionId(void)
     }
     return session;
 }
+char *cgiPrintTemplate(char *templateName, ...);
