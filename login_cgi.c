@@ -21,10 +21,13 @@ int main(void)
     } else {
         userName = cgiReadInputVar(input, "user");
         password = cgiReadInputVar(input, "password");
+        cgiPrintf("starting client with sessionId=%s<br>", session);
         coStartClient("/tmp/test_socket", session);
-        coSendMessage("login %s %s", userName, password);
+        cgiPrintf("sending login %s %s<br>", userName, password);
+        coSendMessage("login %s %s\n", userName, password);
+        cgiPrintf("reading response from server<br>");
         response = coReadMessage();
-        cgiPrintf("%s", response);
+        cgiPrintf("response = %s", response);
         coStopClient();
     }
     return 0;

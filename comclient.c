@@ -25,6 +25,7 @@ void coStartClient(
     struct sockaddr_un address;
     int len;
     int result;
+    char response[3];
 
     coSockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     address.sun_family = AF_UNIX;
@@ -38,6 +39,11 @@ void coStartClient(
     coSessionId = calloc(strlen(sessionId) + 1, sizeof(char));
     strcpy(coSessionId, sessionId);
     write(coSockfd, coSessionId, strlen(coSessionId) + 1);
+    fsync(coSockfd);
+    if(read(coSockfd, response, 3) != 3 || strcmp(response, "OK")) {
+        perror("failed to read 'OK' response");
+        exit(1);
+    }
     coMessageSize = 42;
     coMessage = calloc(coMessageSize, sizeof(char));
 }
@@ -64,7 +70,10 @@ void coSendMessage(
     va_start(ap, format);
     length = vsnprintf(buffer, CO_MAX_MESSAGE_LENGTH, format, ap);
     va_end(ap);
+//temp
+printf("write(%d, %s, %d)<br>", coSockfd, buffer, length + 1);
     write(coSockfd, buffer, length + 1); /* Include terminating '\0' */
+    fsync(coSockfd);
 }
 
 /*--------------------------------------------------------------------------------------------------

@@ -138,8 +138,14 @@ static coClient readMessage(
     for(xClient = 0; xClient < coClientTableSize; xClient++) {
         client = coClientTable[xClient];
         if(client != NULL) {
+#ifdef DEBUG
+            printf("Checking client %u:%s\n", xClient, client->sessionId);
+#endif
             if(FD_ISSET(xClient, &readSockets)) {
                 length = read(xClient, buf, CO_MAX_MESSAGE_LENGTH);
+#ifdef DEBUG
+                printf("Just read %d bytes\n", length);
+#endif
                 if(length <= 0) {
                     if(errno != EAGAIN) {
                         /* I don't know why sometimes sockets that have ID_ISSET true can't be read yet */
@@ -157,8 +163,9 @@ static coClient readMessage(
                     client->sessionId = (char *)calloc(length, sizeof(char));
                     strcpy(client->sessionId, buf);
 #ifdef DEBUG
-                    printf("Got sessionId %s\n", buf);
+                    printf("Got sessionId %s, length %u\n", buf, length);
 #endif
+		    write(coCurrentClient->sockfd, "OK", 3);
                 } else {
 #ifdef DEBUG
                     printf("Read message of length %d: '%s'\n", (int)length, buf);
@@ -276,6 +283,7 @@ void coCompleteResponse(void)
 {
     if(coServerStarted) {
         write(coCurrentClient->sockfd, "", 1);
+	fsync(coCurrentClient->sockfd);
         coCurrentClient->messageLength = 0;
         coCurrentClient->messagePos = 0;
         coCurrentClient = NULL;
