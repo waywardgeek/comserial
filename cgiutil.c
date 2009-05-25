@@ -7,9 +7,12 @@
 #include <stdarg.h>
 #include "cgiutil.h"
 
+typedef unsigned int uint;
+
 static char *varBuf = NULL, *valueBuf = NULL;
 static long varBufSize = 42, valueBufSize = 42;
 static FILE *debugFile = NULL;
+static int initialized = 0;
 
 /*--------------------------------------------------------------------------------------------------
   Enable debug logging to the file.
@@ -208,4 +211,189 @@ char *cgiReadSessionId(void)
     }
     return session;
 }
-char *cgiPrintTemplate(char *templateName, ...);
+/*--------------------------------------------------------------------------------------------------
+  Find out how many args are used in a template.
+--------------------------------------------------------------------------------------------------*/
+static uint countArgs(
+    char *temp)
+{
+    char c;
+    uint maxArg = 0, xArg;
+
+    while (*temp) {
+        c = *temp++;
+        if (c == '%') {
+            c = *temp;
+            if (c == 'l' || c == 'u' || c == 'c') {
+                temp++;
+                c = *temp;
+            }
+            if(isdigit(c)) {
+                temp++;
+                xArg = c - '0';
+                if (xArg >= maxArg) {
+                    maxArg = xArg + 1;
+                }
+            } else if (c == '%') {
+                temp++;
+            }
+        }
+    }
+    return maxArg;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  This code manages a simple string buffer.
+--------------------------------------------------------------------------------------------------*/
+static char *cgiStringBuffer;
+static uint cgiStringBufferSize;
+static uint cgiStringBufferPosition;
+
+/*--------------------------------------------------------------------------------------------------
+  Append a string to the string buffer.
+--------------------------------------------------------------------------------------------------*/
+static void appendString(
+    char *string)
+{
+    uint length = strlen(string);
+
+    if(cgiStringBufferPosition + length + 1 >= cgiStringBufferSize) {
+        cgiStringBufferSize = ((cgiStringBufferPosition + length + 1)*3) >> 1;
+        cgiStringBuffer = (char *)realloc(cgiStringBuffer, cgiStringBufferSize*sizeof(char));
+    }
+    strcpy(cgiStringBuffer + cgiStringBufferPosition, string);
+    cgiStringBufferPosition += length;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Append a character to the string buffer.
+--------------------------------------------------------------------------------------------------*/
+static void appendChar(
+    char c)
+{
+    char string[2];
+
+    string[0] = c;
+    string[1] = '\0';
+    appendString(string);
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Write a template to a string.
+--------------------------------------------------------------------------------------------------*/
+static void wrtemp(
+   char *temp,
+   va_list ap)
+{
+    uint sArg = countArgs(temp), xArg;
+    char *(args[10]);
+    char *string, *arg;
+    char c;
+    int lowerCase = 0, upperCase = 0, caps = 0;
+
+    if(cgiStringBuffer == NULL) {
+        cgiStringBufferSize = 42;
+        cgiStringBuffer = (char *)calloc(cgiStringBufferSize, sizeof(char));
+    }
+    cgiStringBufferPosition = 0;
+    cgiStringBuffer[0] = '\0';
+    for (xArg = 0; xArg < sArg; xArg++) {
+        args[xArg] = va_arg(ap, char *);
+    }
+    string = temp;
+    while (*string) {
+        c = *string++;
+        if (c == '%') {
+            c = *string;
+            if(c == 'l') {
+                lowerCase = 1;
+                c = *++string;
+            } else if(c == 'u') {
+                upperCase = 1;
+                c = *++string;
+            } else if(c == 'c') {
+                caps = 1;
+                c = *++string;
+            }
+            if(isdigit(c)) {
+                string++;
+                xArg = c - '0';
+                if(xArg >= sArg) {
+                    printf("wrtemp: not enough args");
+                    exit(1);
+                }
+                if (*args[xArg]) {
+                    if(lowerCase) {
+                        appendChar((char)tolower(*(args[xArg])));
+                        appendString((args[xArg]) + 1);
+                        lowerCase = 0;
+                    } else if(upperCase) {
+                        appendChar((char)toupper(*(args[xArg])));
+                        appendString((args[xArg]) + 1);
+                        upperCase = 0;
+                    } else if(caps) {
+                        arg = args[xArg];
+                        while(*arg) {
+                            appendChar((char)toupper(*arg));
+                            arg++;
+                        }
+                        caps = 0;
+                    } else {
+                        appendString(args[xArg]);
+                    }
+                }
+            } else if (c == '%') {
+                string++;
+                appendChar('%');
+            }
+        } else {
+            appendChar(c);
+        }
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Write a template to a string.
+--------------------------------------------------------------------------------------------------*/
+char *cgiPrintTemplate(
+    char *temp,
+    ...)
+{
+    va_list ap;
+
+    va_start(ap, temp);
+    wrtemp(temp, ap);
+    va_end(ap);
+    return cgiStringBuffer;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Read a file and return it as a string.
+--------------------------------------------------------------------------------------------------*/
+char *cgiReadFile(
+    char *fileName)
+{
+    uint bufferSize = 42;
+    char *buffer = (char *)calloc(bufferSize, sizeof(char));
+    uint bufferPos = 0;
+    FILE file = fopen(fileName, "r");
+    int c;
+
+    if(file == NULL) {
+        printf("Unable to open file %s\n", fileName);
+        exit(1);
+    }
+    while(1) {
+        if(bufferPos == bufferSize) {
+            bufferSize += bufferSize >> 1;
+            buffer = (char *)realloc(buffer, bufferSize*sizeof(char));
+        }
+        c = getc(file);
+        if(c == EOF) {
+            buffer[bufferPos] = '\0';
+            return buffer;
+        }
+        buffer[bufferPos++] = c;
+    }
+    return NULL; /* Dummy return */
+}

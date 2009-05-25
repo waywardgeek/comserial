@@ -1,0 +1,10 @@
+<html>
+<body>
+<p>
+#0
+</p>
+<form action="/cgi-bin/logout.cgi" method="post">
+<input type="submit" value="Logout">
+</form>
+</body>
+</html>

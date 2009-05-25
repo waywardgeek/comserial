@@ -24,6 +24,7 @@ char *cgiReadSessionId(void);
 char *cgiReadInput(void);
 /* Find a particular input variable value from the input string */
 char *cgiReadInputVar(char *input, char *varName);
-/* Expand an HTML template.  The template will be read from a file, and all occurances of %0,
-  through %n will be replaced with the text in the variable parameters passed. */
-char *cgiPrintTemplate(char *templateName, ...);
+/* Expand an HTML template.  All occurances of %0, through %n will be replaced with the text in the
+   variable parameters passed. */
+char *cgiPrintTemplate(char *template, ...);
+char *cgiReadFile(char *fileName);
