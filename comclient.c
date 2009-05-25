@@ -70,8 +70,6 @@ void coSendMessage(
     va_start(ap, format);
     length = vsnprintf(buffer, CO_MAX_MESSAGE_LENGTH, format, ap);
     va_end(ap);
-//temp
-printf("write(%d, %s, %d)<br>", coSockfd, buffer, length + 1);
     write(coSockfd, buffer, length + 1); /* Include terminating '\0' */
     fsync(coSockfd);
 }

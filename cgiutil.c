@@ -376,7 +376,7 @@ char *cgiReadFile(
     uint bufferSize = 42;
     char *buffer = (char *)calloc(bufferSize, sizeof(char));
     uint bufferPos = 0;
-    FILE file = fopen(fileName, "r");
+    FILE *file = fopen(fileName, "r");
     int c;
 
     if(file == NULL) {
