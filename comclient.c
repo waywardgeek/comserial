@@ -37,8 +37,7 @@ void coStartClient(
     }
     coSessionId = calloc(strlen(sessionId) + 1, sizeof(char));
     strcpy(coSessionId, sessionId);
-    write(coSockfd, coSessionId, strlen(coSessionId));
-    write(coSockfd, "\0", 1);
+    write(coSockfd, coSessionId, strlen(coSessionId) + 1);
     coMessageSize = 42;
     coMessage = calloc(coMessageSize, sizeof(char));
 }

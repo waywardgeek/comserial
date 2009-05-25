@@ -148,6 +148,7 @@ static coClient readMessage(
                             coEndSession(client->sessionId);
                         }
                         close(xClient);
+                        free(client->message);
                         free(client);
                         coClientTable[xClient] = NULL;
                     }
@@ -155,9 +156,13 @@ static coClient readMessage(
                     /* Must be initial sessionId message */
                     client->sessionId = (char *)calloc(length, sizeof(char));
                     strcpy(client->sessionId, buf);
-//temp
-printf("Got sessionId %s\n", buf);
+#ifdef DEBUG
+                    printf("Got sessionId %s\n", buf);
+#endif
                 } else {
+#ifdef DEBUG
+                    printf("Read message of length %d: '%s'\n", (int)length, buf);
+#endif
                     if(length + client->messageLength >= client->messageSize) {
                         client->messageSize = length + client->messageLength + (client->messageSize >> 1);
                         client->message = (char *)realloc(client->message, client->messageSize*sizeof(char));
@@ -227,16 +232,17 @@ char *coStartResponse(void)
 --------------------------------------------------------------------------------------------------*/
 int coGetc(void)
 {
-    char c;
-
     if(!coServerStarted) {
         return getchar();
     }
     if(coCurrentClient->messagePos == coCurrentClient->messageLength) {
         return EOF;
     }
-    c = coCurrentClient->message[(coCurrentClient->messagePos)++];
-    return c;
+#ifdef DEBUG
+    printf("Read char '%c' 0x%x\n", coCurrentClient->message[coCurrentClient->messagePos],
+            coCurrentClient->message[coCurrentClient->messagePos]);
+#endif
+    return coCurrentClient->message[(coCurrentClient->messagePos)++];
 }
 
 /*--------------------------------------------------------------------------------------------------
