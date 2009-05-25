@@ -59,6 +59,7 @@ static int readLine(
         c = coGetc();
         if(c == EOF || c == '\n') {
             line[xChar] = '\0';
+            printf("Read %s from client\n", line);
             return c != EOF || xChar != 0;
         }
         line[xChar++] = c;

@@ -29,7 +29,7 @@ void coStartClient(
     coSockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     address.sun_family = AF_UNIX;
     strcpy(address.sun_path, fileSocketPath);
-    len = strlen(fileSocketPath);
+    len = strlen(fileSocketPath) + 2;
     result = connect(coSockfd, (struct sockaddr*)&address, len);
     if(result == -1) {
         perror("failed to open socket");
