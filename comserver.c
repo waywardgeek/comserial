@@ -2,13 +2,17 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <stdarg.h>
 #include "comserver.h"
 #include "comclient.h" /* for max message length */
 
 struct coClientStruct;
 typedef unsigned int uint;
-typedef struct coClientStruct *client;
+typedef struct coClientStruct *coClient;
 
 struct coClientStruct {
     int sockfd;
@@ -18,13 +22,13 @@ struct coClientStruct {
     char *sessionId;
 };
 
-static coClient coFirstClient = NULL, coLastClient = NULL;
 static coClient *coClientTable;
 static uint coClientTableSize = 16;
-static uint coNumClients = 0;
 static int coServerSockfd;
 static char *coSocketPath;
 static coClient coCurrentClient;
+static int coServerStarted = 0;
+static coEndSessionProc coEndSession = NULL;
 
 /*--------------------------------------------------------------------------------------------------
   Set a file descriptor to be non-blocking.  This allows accept to return right away, without
@@ -34,7 +38,7 @@ static void setSocketNonBlocking(
     int socket,
     int value)
 {
-    UTINT flags = fcntl(socket, F_GETFL);
+    int flags = fcntl(socket, F_GETFL);
 
     if(value) {
         flags |= O_NONBLOCK;
@@ -42,7 +46,7 @@ static void setSocketNonBlocking(
         flags &= ~O_NONBLOCK;
     }
     if(fcntl(socket, F_SETFL, flags) < 0) {
-        perror("Trouble setting socket non-block mode: error #%d: %s", errno, strerror(errno));
+        perror("Trouble setting socket non-block mode");
         exit(1);
     }
 }
@@ -61,15 +65,16 @@ void coStartServer(
     setSocketNonBlocking(coServerSockfd, 1);
     serverAddress.sun_family = AF_UNIX;
     strcpy(serverAddress.sun_path, fileSocketPath);
-    serverLen = strlen(serverAddress) + 1;
+    serverLen = strlen(fileSocketPath) + 1;
     if(bind(coServerSockfd, (struct sockaddr*)&serverAddress, serverLen)) {
         perror("failed to bind socket");
         exit(1);
     }
     listen(coServerSockfd, 5);
     coSocketPath = calloc(strlen(fileSocketPath) + 1, sizeof(char));
-    strcpy(soSocketPath, fileSocketPath);
+    strcpy(coSocketPath, fileSocketPath);
     coClientTable = (coClient *)calloc(coClientTableSize, sizeof(coClient));
+    coServerStarted = 1;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -77,10 +82,10 @@ void coStartServer(
 --------------------------------------------------------------------------------------------------*/
 void coStopServer(void)
 {
-    unlink(soSocketPath);
-    free(soSocketPath);
+    unlink(coSocketPath);
+    free(coSocketPath);
     free(coClientTable);
-    close(soServerSockfd);
+    close(coServerSockfd);
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -96,7 +101,7 @@ static int acceptConnection(void)
         perror("Failed to accept socket");
         exit(1);
     }
-    setSocketNonBlocking(clientSockfd, true);
+    setSocketNonBlocking(clientSockfd, 1);
     return clientSockfd;
 }
 
@@ -105,7 +110,7 @@ static int acceptConnection(void)
 --------------------------------------------------------------------------------------------------*/
 static void acceptNewClient(void)
 {
-    int sockfd = acceptConnection(void);
+    int sockfd = acceptConnection();
     coClient client = (coClient)calloc(1, sizeof(struct coClientStruct));
 
     client->sockfd = sockfd;
@@ -119,39 +124,9 @@ static void acceptNewClient(void)
 }
 
 /*--------------------------------------------------------------------------------------------------
-  Read some bytes from the socket, and incrementally build messages with them.  When we have
-  completed messages, process them with bsProcessMessageCallback.
+  See if any message is complete, and if so, and return the client with a complete message.
 --------------------------------------------------------------------------------------------------*/
-static void readMessage(
-    bsConnection connection)
-{
-    ssize_t xByte;
-
-    if(length <= 0) {
-        if(errno == EAGAIN) {
-            /* I don't know why sometimes sockets that have ID_ISSET true can't be read yet */
-            return;
-        }
-        if(length == 0) {
-            bsConnectionClose(connection, utSprintf("Connection closed to IP %s:%u",
-                bsConnectionGetIp(connection), bsConnectionGetPort(connection)));
-        } else {
-            bsLogLibError("Failed to read from socket");
-            bsConnectionClose(connection, "");
-        }
-        return;
-    }
-    for(xByte = 0; xByte < length; xByte++) {
-        if(!pushByteIntoConnection(connection, buf[xByte])) {
-            return;
-        }
-    }
-}
-
-/*--------------------------------------------------------------------------------------------------
-  See if any message is complete, and if so, and return it.
---------------------------------------------------------------------------------------------------*/
-static char *readMessage(
+static coClient readMessage(
     fd_set readSockets)
 {
     coClient client, readyClient = NULL;
@@ -160,16 +135,21 @@ static char *readMessage(
     ssize_t length;
 
     for(xClient = 0; xClient < coClientTableSize; xClient++) {
-        client = coClientTable(xClient);
+        client = coClientTable[xClient];
         if(client != NULL) {
             if(FD_ISSET(xClient, &readSockets)) {
                 length = read(xClient, buf, CO_MAX_MESSAGE_LENGTH);
                 if(length <= 0) {
-                    /* Close client */
-                    close(xClient);
-                    free(client);
-                    coClientTable[xClient] = NULL;
-                    // temp: need to indicate to server that client has gone away
+                    if(errno != EAGAIN) {
+                        /* I don't know why sometimes sockets that have ID_ISSET true can't be read yet */
+                        /* Close client */
+                        if(coEndSession != NULL) {
+                            coEndSession(client->sessionId);
+                        }
+                        close(xClient);
+                        free(client);
+                        coClientTable[xClient] = NULL;
+                    }
                 } else {
                     if(length + client->messageLength >= client->messageSize) {
                         client->messageSize = length + client->messageLength + (client->messageSize >> 1);
@@ -200,13 +180,22 @@ char *coStartResponse(void)
     struct timeval tv;
     int maxSocket;
     int numActiveSockets;
+    int xClient;
 
+    if(!coServerStarted) {
+        return "sessionId";
+    }
     do {
         maxSocket = coServerSockfd;
         FD_ZERO(&readSockets);
-        for(client = coFirstClient; client != NUll; client = client->next) {
-            maxSocket = utMax(client->sockfd, maxSocket);
-            FD_SET(client->sockfd, &readSockets);
+        for(xClient = 0; xClient < coClientTableSize; xClient++) {
+            client = coClientTable[xClient];
+            if(client != NULL) {
+                if(client->sockfd > maxSocket) {
+                    maxSocket = client->sockfd;
+                }
+                FD_SET(client->sockfd, &readSockets);
+            }
         }
         FD_SET(coServerSockfd, &readSockets);
         /* Wait up to 2 seconds. */
@@ -231,6 +220,9 @@ char *coStartResponse(void)
 --------------------------------------------------------------------------------------------------*/
 int coGetc(void)
 {
+    if(!coServerStarted) {
+        return getchar();
+    }
     if(coCurrentClient->messagePos == coCurrentClient->messageLength) {
         return EOF;
     }
@@ -238,7 +230,7 @@ int coGetc(void)
 }
 
 /*--------------------------------------------------------------------------------------------------
-  Read a character from the active client's message buffer.
+  Write a message to the client.  If coStartServer was never called, just call coPrintf.
 --------------------------------------------------------------------------------------------------*/
 int coPrintf(
     char *format,
@@ -253,7 +245,11 @@ int coPrintf(
     va_end(ap);
     //temp - fix this to use local write buffers that are driven with select
     // this will fail if the client is not ready for a write
-    write(coCurrentClient->sockfd, buffer, length);
+    if(coServerStarted) {
+        write(coCurrentClient->sockfd, buffer, length);
+    } else {
+        printf("%s", buffer);
+    }
     return length;
 }
 
@@ -262,6 +258,17 @@ int coPrintf(
 --------------------------------------------------------------------------------------------------*/
 void coCompleteResponse(void)
 {
-    write(coCurrentClient->sockfd, "", 1);
-    coCurrentClient = NULL;
+    if(coServerStarted) {
+        write(coCurrentClient->sockfd, "", 1);
+        coCurrentClient = NULL;
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Just set the coEndSession callback.
+--------------------------------------------------------------------------------------------------*/
+void coSetEndSessionCallback(
+    coEndSessionProc endSession)
+{
+    coEndSession = endSession;
 }

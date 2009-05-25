@@ -15,8 +15,9 @@
       coCompleteResponse(void);
       char coGetc(void):
 
-  The point of these functions is to act like the functions used in a typical console app:
-  printf and getchar.  At the top level of a command interpreter loop, you should call
+  The point of these functions is to act like the functions used in a typical console app: printf
+  and getchar.  In fact, if you don't call coStartServer, coPrintf will just call printf, and
+  coGetc will just call getchar.  At the top level of a command interpreter loop, you should call
   coStartResponse, which returns the sessionId of the next message from a client.  Then call your
   command processing code, which calls coGetc until it determines it's read enough input.  '\0'
   will be the actual termination of the messsage from the client, but you may only read to the
@@ -30,6 +31,11 @@
       int coStartServer(char *fileSocketPath);
       void coStopServer(void);
 
+  Finally, you may want to know when a user session has ended.  Use coSetEndSessionCallback to
+  register a callback function that will be called whenever a session ends.
+
+      void coSetEndSessionCallback((*endSession)(char *sessionId));
+
 --------------------------------------------------------------------------------------------------*/
 
 void coStartServer(char *fileSocketPath);
@@ -37,4 +43,6 @@ void coStopServer(void);
 char *coStartResponse(void);
 int coPrintf(char *format, ...);
 void coCompleteResponse(void);
-int coGetc(void):
+int coGetc(void);
+typedef (*coEndSessionProc)(char *sessionId);
+void coSetEndSessionCallback(coEndSessionProc endSession);
