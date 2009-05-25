@@ -64,8 +64,9 @@ void coStartServer(
     coServerSockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     setSocketNonBlocking(coServerSockfd, 1);
     serverAddress.sun_family = AF_UNIX;
-    strcpy(serverAddress.sun_path, fileSocketPath);
-    serverLen = strlen(fileSocketPath) + 1;
+    strncpy(serverAddress.sun_path, fileSocketPath, 108);
+    serverAddress.sun_path[108 - 1] = '\0';
+    serverLen = strlen(serverAddress.sun_path) + 2;
     if(bind(coServerSockfd, (struct sockaddr*)&serverAddress, serverLen)) {
         perror("failed to bind socket");
         exit(1);

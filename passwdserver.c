@@ -33,7 +33,7 @@ static void readPasswdFile(
     char loginName[100], password[100];
 
     if(file == NULL) {
-        coPrintf("Unable to open password file %s\n", passwdFileName);
+        printf("Unable to open password file %s\n", passwdFileName);
         exit(1);
     }
     while(fscanf(file, "%s %s\n", loginName, password) == 2) {
@@ -42,7 +42,6 @@ static void readPasswdFile(
         firstUser = user;
         strcpy(user->loginName, loginName);
         strcpy(user->password, password);
-        coPrintf("Added user %s with password=%s\n", loginName, password);
     }
     fclose(file);
 }
@@ -53,12 +52,34 @@ static void readPasswdFile(
 static int readLine(
     char *line)
 {
+    int xChar = 0;
     int c;
 
-    while((c = coGetc()) != EOF && c != '\n') {
-        *line++ = c;
+    while(1) {
+        c = coGetc();
+        if(c == EOF || c == '\n') {
+            line[xChar] = '\0';
+            return c != EOF || xChar != 0;
+        }
+        line[xChar++] = c;
     }
-    return c != EOF;
+    return 0; /* Dummy return */
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Find the user logged in with the sessionId.
+--------------------------------------------------------------------------------------------------*/
+static User findUser(
+    char *sessionId)
+{
+    User user;
+
+    for(user = firstUser; user != NULL; user = user->next) {
+        if(user->loggedIn && !strcmp(user->sessionId, sessionId)) {
+            return user;
+        }
+    }
+    return NULL;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -92,18 +113,12 @@ static int executeCommand(
             coPrintf("Invalid name/password combo.  If you do that again, I'll have to spank you.\n");
         }
     } else if(!strcmp(line, "logout")) {
-        for(user = firstUser; user != NULL; user = user->next) {
-            if(!strcmp(user->sessionId, sessionId)) {
-                if(user->loggedIn) {
-                    user->loggedIn = 0;
-                    coPrintf("Logout successful... wimp.\n");
-                } else {
-                    coPrintf("Not logged in.\n");
-                }
-                return 1;
-            }
+        user = findUser(sessionId);
+        if(user ==  NULL) {
+            coPrintf("Not logged in.\n");
+        } else {
+            coPrintf("Logout successful... wimp.\n");
         }
-        coPrintf("Not logged in.\n");
     } else if(!strcmp(line, "quit")) {
         coPrintf("goodbye.\n");
         return 0;
@@ -114,13 +129,26 @@ static int executeCommand(
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Log out a user when his session ends.
+--------------------------------------------------------------------------------------------------*/
+static void endSession(
+    char *sessionId)
+{
+    User user = findUser(sessionId);
+
+    if(user != NULL) {
+        user->loggedIn = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------
   This is the read/execute loop.
 --------------------------------------------------------------------------------------------------*/
 static void executeFileCommands(void)
 {
     char line[256];
     char *sessionId;
-    int done = 0;
+    int passed;
 
     do {
         sessionId = coStartResponse();
@@ -128,9 +156,9 @@ static void executeFileCommands(void)
         if(!readLine(line)) {
             return;
         }
-        done = executeCommand(line, sessionId);
+        passed = executeCommand(line, sessionId);
         coCompleteResponse();
-    } while(!done);
+    } while(passed);
 }
 
 int main(
@@ -146,6 +174,7 @@ int main(
         coStartServer(argv[1]);
     }
     readPasswdFile("passwd");
+    coSetEndSessionCallback(endSession);
     executeFileCommands();
     if(argc == 2) {
         coStopServer();

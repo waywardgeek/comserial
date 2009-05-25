@@ -44,5 +44,5 @@ char *coStartResponse(void);
 int coPrintf(char *format, ...);
 void coCompleteResponse(void);
 int coGetc(void);
-typedef (*coEndSessionProc)(char *sessionId);
+typedef void (*coEndSessionProc)(char *sessionId);
 void coSetEndSessionCallback(coEndSessionProc endSession);

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include "comclient.h"
 
 static char *coSessionId;
@@ -58,11 +59,11 @@ void coSendMessage(
     ...)
 {
     va_list ap;
-    char buffer[CO_MAX_STRING_LENGTH];
+    char buffer[CO_MAX_MESSAGE_LENGTH];
     int length;
 
     va_start(ap, format);
-    length = vsnprintf(buffer, CO_MAX_STRING_LENGTH, format, ap);
+    length = vsnprintf(buffer, CO_MAX_MESSAGE_LENGTH, format, ap);
     va_end(ap);
     write(coSockfd, buffer, length + 1); /* Include terminating '\0' */
 }
