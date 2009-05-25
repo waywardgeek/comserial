@@ -144,7 +144,7 @@ static coClient readMessage(
             if(FD_ISSET(xClient, &readSockets)) {
                 length = read(xClient, buf, CO_MAX_MESSAGE_LENGTH);
 #ifdef DEBUG
-                printf("Just read %d bytes\n", length);
+                printf("Just read %d bytes\n", (int)length);
 #endif
                 if(length <= 0) {
                     if(errno != EAGAIN) {
@@ -163,9 +163,10 @@ static coClient readMessage(
                     client->sessionId = (char *)calloc(length, sizeof(char));
                     strcpy(client->sessionId, buf);
 #ifdef DEBUG
-                    printf("Got sessionId %s, length %u\n", buf, length);
+                    printf("Got sessionId %s, length %d\n", buf, (int)length);
 #endif
-		    write(coCurrentClient->sockfd, "OK", 3);
+                    write(xClient, "OK", 3);
+                    fsync(xClient);
                 } else {
 #ifdef DEBUG
                     printf("Read message of length %d: '%s'\n", (int)length, buf);
@@ -283,7 +284,7 @@ void coCompleteResponse(void)
 {
     if(coServerStarted) {
         write(coCurrentClient->sockfd, "", 1);
-	fsync(coCurrentClient->sockfd);
+        fsync(coCurrentClient->sockfd);
         coCurrentClient->messageLength = 0;
         coCurrentClient->messagePos = 0;
         coCurrentClient = NULL;
