@@ -59,7 +59,11 @@ static int readLine(
         c = coGetc();
         if(c == EOF || c == '\n') {
             line[xChar] = '\0';
-            printf("Read %s from client\n", line);
+if(c == EOF) {
+    printf("Warning: read EOF\n");
+}
+//temp
+printf("Read '%s' from client\n", line);
             return c != EOF || xChar != 0;
         }
         line[xChar++] = c;
@@ -92,18 +96,18 @@ static int executeCommand(
     char *line,
     char *sessionId)
 {
-    User user;
+    User user = findUser(sessionId);
     char loginName[100], password[100];
 
     if(sscanf(line, "login %s %s", loginName, password) == 2) {
+        if(user != NULL && user->loggedIn) {
+            coPrintf("Already logged in.\n");
+            return 1;
+        }
         for(user = firstUser; user != NULL; user = user->next) {
             if(!strcmp(user->loginName, loginName) && !strcmp(user->password, password)) {
                 if(user->loggedIn) {
-                    if(strcmp(user->sessionId, sessionId)) {
-                        coPrintf("This user is already on-line in a different session.\n");
-                    } else {
-                        coPrintf("Already logged in.\n");
-                    }
+                    coPrintf("This user is already on-line in a different session.\n");
                 } else {
                     user->loggedIn = 1;
                     strcpy(user->sessionId, sessionId);
@@ -111,14 +115,14 @@ static int executeCommand(
                 }
                 return 1;
             }
-            coPrintf("Invalid name/password combo.  If you do that again, I'll have to spank you.\n");
         }
+        coPrintf("Invalid name/password combo.  If you do that again, I'll have to spank you!\n");
     } else if(!strcmp(line, "logout")) {
-        user = findUser(sessionId);
         if(user ==  NULL) {
             coPrintf("Not logged in.\n");
         } else {
             coPrintf("Logout successful... wimp.\n");
+            user->loggedIn = 0;
         }
     } else if(!strcmp(line, "quit")) {
         coPrintf("goodbye.\n");
@@ -153,7 +157,6 @@ static void executeFileCommands(void)
 
     do {
         sessionId = coStartResponse();
-        coPrintf("> ");
         if(!readLine(line)) {
             return;
         }

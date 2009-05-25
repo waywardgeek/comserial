@@ -76,13 +76,16 @@ char *coReadMessage(void)
     char c;
     int messagePos = 0;
 
-    while(read(coSockfd, &c, 1) == 1) {
+    do {
+        if(read(coSockfd, &c, 1) != 1) {
+            perror("Cannot read from server");
+            exit(1);
+        }
         if(messagePos + 1 == coMessageSize) {
             coMessageSize <<= 1;
             coMessage = (char *)realloc(coMessage, coMessageSize*sizeof(char));
         }
         coMessage[messagePos++] = c;
-    }
-    coMessage[messagePos] = '\0';
+    } while(c != '\0');
     return coMessage;
 }

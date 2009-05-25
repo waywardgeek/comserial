@@ -151,6 +151,12 @@ static coClient readMessage(
                         free(client);
                         coClientTable[xClient] = NULL;
                     }
+                } else if(client->sessionId == NULL) {
+                    /* Must be initial sessionId message */
+                    client->sessionId = (char *)calloc(length, sizeof(char));
+                    strcpy(client->sessionId, buf);
+//temp
+printf("Got sessionId %s\n", buf);
                 } else {
                     if(length + client->messageLength >= client->messageSize) {
                         client->messageSize = length + client->messageLength + (client->messageSize >> 1);
@@ -221,13 +227,16 @@ char *coStartResponse(void)
 --------------------------------------------------------------------------------------------------*/
 int coGetc(void)
 {
+    char c;
+
     if(!coServerStarted) {
         return getchar();
     }
     if(coCurrentClient->messagePos == coCurrentClient->messageLength) {
         return EOF;
     }
-    return coCurrentClient->message[(coCurrentClient->messagePos)++];
+    c = coCurrentClient->message[(coCurrentClient->messagePos)++];
+    return c;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -261,6 +270,8 @@ void coCompleteResponse(void)
 {
     if(coServerStarted) {
         write(coCurrentClient->sockfd, "", 1);
+        coCurrentClient->messageLength = 0;
+        coCurrentClient->messagePos = 0;
         coCurrentClient = NULL;
     }
 }
