@@ -100,6 +100,9 @@ static int executeCommand(
     User user = findUser(sessionId);
     char loginName[100], password[100];
 
+#ifdef DEBUG
+    printf("%s %s, user=%s\n", sessionId, line, user == NULL? "none" : user->loginName);
+#endif
     if(sscanf(line, "login %s %s", loginName, password) == 2) {
         if(user != NULL && user->loggedIn) {
             coPrintf("Already logged in.\n");

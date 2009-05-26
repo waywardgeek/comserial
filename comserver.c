@@ -102,7 +102,6 @@ static int acceptConnection(void)
         perror("Failed to accept socket");
         exit(1);
     }
-    setSocketNonBlocking(clientSockfd, 1);
     return clientSockfd;
 }
 
@@ -147,7 +146,7 @@ static coClient readMessage(
                 printf("Just read %d bytes\n", (int)length);
 #endif
                 if(length <= 0) {
-                    if(errno != EAGAIN) {
+                    if(length < 0 && errno != EAGAIN) {
                         /* I don't know why sometimes sockets that have ID_ISSET true can't be read yet */
                         /* Close client */
                         if(coEndSession != NULL) {
@@ -246,10 +245,6 @@ int coGetc(void)
     if(coCurrentClient->messagePos == coCurrentClient->messageLength) {
         return EOF;
     }
-#ifdef DEBUG
-    printf("Read char '%c' 0x%x\n", coCurrentClient->message[coCurrentClient->messagePos],
-            coCurrentClient->message[coCurrentClient->messagePos]);
-#endif
     return coCurrentClient->message[(coCurrentClient->messagePos)++];
 }
 

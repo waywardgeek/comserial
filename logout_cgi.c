@@ -9,7 +9,7 @@
 int main(void)
 {
     char *input, *session, *response;
-    char *logoutTemplate, *logoutHTML;
+    char *loginTemplate, *logoutHTML;
     FILE *f;
 
     cgiEnableDebug("/tmp/log");
@@ -23,8 +23,8 @@ int main(void)
         coStartClient("/tmp/test_socket", session);
         coSendMessage("logout\n");
         response = coReadMessage();
-        logoutTemplate = cgiReadFile("logout.template");
-        logoutHTML = cgiPrintTemplate(logoutTemplate, response);
+        loginTemplate = cgiReadFile("login.template");
+        logoutHTML = cgiPrintTemplate(loginTemplate, response);
         cgiPrintf("%s", logoutHTML);
         coStopClient();
     }

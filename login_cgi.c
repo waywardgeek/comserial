@@ -3,13 +3,14 @@
 -------------------------------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "cgiutil.h"
 #include "comclient.h"
 
 int main(void)
 {
     char *input, *session, *userName, *password, *response;
-    char *logoutTemplate, *logoutHTML;
+    char *logoutTemplate, *loginHTML;
     FILE *f;
 
     cgiEnableDebug("/tmp/log");
@@ -25,9 +26,13 @@ int main(void)
         coStartClient("/tmp/test_socket", session);
         coSendMessage("login %s %s\n", userName, password);
         response = coReadMessage();
-        logoutTemplate = cgiReadFile("logout.template");
-        logoutHTML = cgiPrintTemplate(logoutTemplate, response);
-        cgiPrintf("%s", logoutHTML);
+	if(strstr(response, "Login successful")) {
+	    logoutTemplate = cgiReadFile("logout.template");
+	} else {
+	    logoutTemplate = cgiReadFile("login.template");
+	}
+        loginHTML = cgiPrintTemplate(logoutTemplate, response);
+        cgiPrintf("%s", loginHTML);
         coStopClient();
     }
     return 0;

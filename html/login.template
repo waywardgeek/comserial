@@ -1,0 +1,16 @@
+<html>
+<body>
+<p>
+%0
+</p>
+<form action="login.cgi" method="post">
+Username: 
+<input type="text" name="user">
+<br>
+Password: 
+<input type="password" name="password">
+<br>
+<input type="submit" value="Login">
+</form>
+</body>
+</html>
