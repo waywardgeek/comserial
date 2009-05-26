@@ -8,8 +8,8 @@ void cgiEnableDebug(char *logFile);
 /* Call this rather than printf simply to enable optional debug logging */
 int cgiPrintf(char *format, ...);
 /* Encode a string to replace non-alpha-numeric characters with % escapes, and spaces with +.
-   The returned string is allocated with calloc, so the caller will need to free it. */
-void cgiEncode(char *string);
+   The returned string is static, and should be used before this is called again. */
+char *cgiEncode(char *string);
 /* Unencodes encoded strings in-place, overwriting the original string */
 void cgiUnencode(char *string);
 /* The following two cookie functions must be called while writing the header of the CGI response */

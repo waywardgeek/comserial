@@ -38,7 +38,7 @@ void coStartClient(
     }
     coSessionId = calloc(strlen(sessionId) + 1, sizeof(char));
     strcpy(coSessionId, sessionId);
-    write(coSockfd, coSessionId, strlen(coSessionId) + 1);
+    len = write(coSockfd, coSessionId, strlen(coSessionId) + 1);
     fsync(coSockfd);
     if(read(coSockfd, response, 3) != 3 || strcmp(response, "OK")) {
         perror("failed to read 'OK' response");
@@ -70,7 +70,7 @@ void coSendMessage(
     va_start(ap, format);
     length = vsnprintf(buffer, CO_MAX_MESSAGE_LENGTH, format, ap);
     va_end(ap);
-    write(coSockfd, buffer, length + 1); /* Include terminating '\0' */
+    length = write(coSockfd, buffer, length + 1); /* Include terminating '\0' */
     fsync(coSockfd);
 }
 

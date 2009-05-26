@@ -48,6 +48,39 @@ int cgiPrintf(
 /*--------------------------------------------------------------------------------------------------
   Just unencode the string.  Do it in place.
 --------------------------------------------------------------------------------------------------*/
+char *cgiEncode(
+    char *string)
+{
+    char *p, c;
+
+    if(varBuf == NULL) {
+        varBuf = (char *)calloc(varBufSize, sizeof(char));
+        valueBuf = (char *)calloc(valueBufSize, sizeof(char));
+    }
+    if(strlen(string)*3 + 1 > valueBufSize) {
+        valueBufSize = strlen(string) << 2;
+        valueBuf = (char *)realloc(valueBuf, valueBufSize*sizeof(char));
+    }
+    p = valueBuf;
+    while(*string != '\0') {
+        c = *string++;
+        if(c == ' ') {
+            *p++ = '+';
+        } else if(!isalnum(c) && c != '.' && c != '_') {
+            *p++ = '%';
+            sprintf(p, "%2x", c);
+            p += 2;
+        } else {
+            *p++ = *string;
+        }
+    }
+    *p = '\0';
+    return valueBuf;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Just unencode the string.  Do it in place.
+--------------------------------------------------------------------------------------------------*/
 void cgiUnencode(
     char *string)
 {
@@ -170,8 +203,7 @@ char *cgiReadInput(void)
         return NULL;
     }
     input = (char *)calloc(len + 1, sizeof(char));
-    fgets(input, len + 1, stdin);
-    return input;
+    return fgets(input, len + 1, stdin);
 }
 
 /*--------------------------------------------------------------------------------------------------
