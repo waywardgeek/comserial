@@ -71,7 +71,7 @@ char *cgiEncode(
             sprintf(p, "%2x", c);
             p += 2;
         } else {
-            *p++ = *string;
+            *p++ = c;
         }
     }
     *p = '\0';
