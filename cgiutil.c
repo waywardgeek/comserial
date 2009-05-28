@@ -68,7 +68,41 @@ char *cgiEncode(
             *p++ = '+';
         } else if(!isalnum(c) && c != '.' && c != '_') {
             *p++ = '%';
-            sprintf(p, "%2x", c);
+            sprintf(p, "%02x", (unsigned char)c);
+            p += 2;
+        } else {
+            *p++ = c;
+        }
+    }
+    *p = '\0';
+    return valueBuf;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Just unencode the string.  Do it in place.
+--------------------------------------------------------------------------------------------------*/
+char *cgiEncodeArray(
+    char *array,
+    int length)
+{
+    char *p, c;
+
+    if(varBuf == NULL) {
+        varBuf = (char *)calloc(varBufSize, sizeof(char));
+        valueBuf = (char *)calloc(valueBufSize, sizeof(char));
+    }
+    if(length*3 + 1 > valueBufSize) {
+        valueBufSize = length << 2;
+        valueBuf = (char *)realloc(valueBuf, valueBufSize*sizeof(char));
+    }
+    p = valueBuf;
+    while(length-- != 0) {
+        c = *array++;
+        if(c == ' ') {
+            *p++ = '+';
+        } else if(!isalnum(c) && c != '.' && c != '_') {
+            *p++ = '%';
+            sprintf(p, "%02x", (unsigned char)c);
             p += 2;
         } else {
             *p++ = c;
@@ -170,17 +204,22 @@ char *cgiReadCookie(
 /*--------------------------------------------------------------------------------------------------
   Generate a random session ID.
 --------------------------------------------------------------------------------------------------*/
-static char *generateSessionId(void)
+char *cgiGenerateRandomID(
+    unsigned int length)
 {
     FILE *randFile = fopen("/dev/urandom", "r");
-    static char randChars[21];
-    char *string = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-";
+    static char randChars[CGI_MAX_RANDOM_ID + 1];
+    char *string = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.";
     int i;
 
-    for(i = 0; i < 20; i++) {
+    if(length > CGI_MAX_RANDOM_ID) {
+        printf("Random ID too long.\n");
+        exit(1);
+    }
+    for(i = 0; i < length; i++) {
         randChars[i] = string[getc(randFile) & 0x3f];
     }
-    randChars[20] = '\0';
+    randChars[length] = '\0';
     fclose(randFile);
     return randChars;
 }
@@ -238,7 +277,7 @@ char *cgiReadSessionId(void)
     char *session = cgiReadCookie("sessionId");
 
     if(session == NULL) {
-        session = generateSessionId();
+        session = cgiGenerateRandomID(20);
         cgiPrintf("Set-Cookie: sessionId=%s\n", session);
     }
     return session;

@@ -2,6 +2,7 @@
 #define CGI_INPUT_MAXLEN 100000000
 /* Max length of message created with cgiPrintf */
 #define CGI_MAX_STRING_LENGTH 4096
+#define CGI_MAX_RANDOM_ID 4096
 
 /* Calling this causes all text printed by cgiPrintf to be logged to the log file */
 void cgiEnableDebug(char *logFile);
@@ -10,6 +11,8 @@ int cgiPrintf(char *format, ...);
 /* Encode a string to replace non-alpha-numeric characters with % escapes, and spaces with +.
    The returned string is static, and should be used before this is called again. */
 char *cgiEncode(char *string);
+/* Like cgiEncode, but can encode binary arrays which are not zero-terminated. */
+char *cgiEncodeArray(char *array, int length);
 /* Unencodes encoded strings in-place, overwriting the original string */
 void cgiUnencode(char *string);
 /* The following two cookie functions must be called while writing the header of the CGI response */
@@ -28,3 +31,4 @@ char *cgiReadInputVar(char *input, char *varName);
    variable parameters passed. */
 char *cgiPrintTemplate(char *template, ...);
 char *cgiReadFile(char *fileName);
+char *cgiGenerateRandomID(unsigned int length);
