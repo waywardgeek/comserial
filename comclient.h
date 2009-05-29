@@ -11,13 +11,16 @@
 
   The client does so with:
 
-      int coStartClient(char *fileSocketPath, char *sessionId);
+      char *coStartClient(char *fileSocketPath, char *sessionId);
       void coStopClient(void);
+
+  The server is expected to send an initial hello message of some sort, which is returned by
+  coStartClient.
 --------------------------------------------------------------------------------------------------*/
 
 /* Largest string that can be created with coSendMessage. */
 #define CO_MAX_MESSAGE_LENGTH 4096
-void coStartClient(char *fileSocketPath, char *sessionId);
+char *coStartClient(char *fileSocketPath, char *sessionId);
 void coStopClient(void);
 void coSendMessage(char *format, ...);
 /* Note that a pointer to a static buffer is returned, which will be over-written by the next

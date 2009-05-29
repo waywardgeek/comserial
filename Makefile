@@ -12,6 +12,6 @@ logout.cgi: logout_cgi.c cgiutil.c cgiutil.h comclient.c comclient.h
 passwdserver: passwdserver.c comserver.c comserver.h comclient.h
 	gcc $(CFLAGS) passwdserver.c comserver.c -o passwdserver
 
-client: client.c comclient.c comclient.h
-	gcc $(CFLAGS) client.c comclient.c -o client
+client: client.c comclient.c comclient.h cgiutil.c cgiutil.h
+	gcc $(CFLAGS) client.c comclient.c cgiutil.c -o client
 

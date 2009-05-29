@@ -16,9 +16,10 @@ static char *coMessage;
 static int coMessageSize;
 
 /*--------------------------------------------------------------------------------------------------
-  Start the client.  Connect to the server's file socket, and return non-zero on success.
+  Start the client.  Connect to the server's file socket, and return the greeting message.
+  return NULL on failure.
 --------------------------------------------------------------------------------------------------*/
-void coStartClient(
+char *coStartClient(
     char *fileSocketPath,
     char *sessionId)
 {
@@ -34,18 +35,15 @@ void coStartClient(
     result = connect(coSockfd, (struct sockaddr*)&address, len);
     if(result == -1) {
         perror("failed to open socket");
-        exit(1);
+        return NULL;
     }
     coSessionId = calloc(strlen(sessionId) + 1, sizeof(char));
     strcpy(coSessionId, sessionId);
     len = write(coSockfd, coSessionId, strlen(coSessionId) + 1);
     fsync(coSockfd);
-    if(read(coSockfd, response, 3) != 3 || strcmp(response, "OK")) {
-        perror("failed to read 'OK' response");
-        exit(1);
-    }
     coMessageSize = 42;
     coMessage = calloc(coMessageSize, sizeof(char));
+    return coReadMessage();
 }
 
 /*--------------------------------------------------------------------------------------------------

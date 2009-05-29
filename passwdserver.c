@@ -11,9 +11,11 @@ static int readFromFileSocket = 0;
 
 struct UserStruct;
 typedef struct UserStruct *User;
+struct SessionStruct;
+typedef struct SessionStruct *Session;
 
 struct UserStruct {
-    char sessionId[100];
+    Session session;
     char loginName[100];
     char password[100];
     User next;
@@ -21,6 +23,14 @@ struct UserStruct {
 };
 
 static User firstUser;
+
+struct SessionStruct {
+    User user;
+    char sessionID[100];
+    Session next, prev;
+};
+
+static Session firstSession;
 
 /*--------------------------------------------------------------------------------------------------
   Read in the users and their passwords from the passord file.
@@ -73,35 +83,35 @@ static int readLine(
 }
 
 /*--------------------------------------------------------------------------------------------------
-  Find the user logged in with the sessionId.
+  Find the session from the sessionID.
 --------------------------------------------------------------------------------------------------*/
-static User findUser(
-    char *sessionId)
+static Session findSession(
+    char *sessionID)
 {
-    User user;
+    Session session;
 
-    for(user = firstUser; user != NULL; user = user->next) {
-        if(user->loggedIn && !strcmp(user->sessionId, sessionId)) {
-            return user;
+    for(session = firstSession; session != NULL; session = session->next) {
+        if(!strcmp(session->sessionID, sessionID)) {
+            return session;
         }
     }
     return NULL;
 }
 
 /*--------------------------------------------------------------------------------------------------
-  Execute the command in the line variable.  The first word is always the user's sessionId.
-  To help keep track of what session we're responding to, print "Start <sessionId>" in the
-  beginning of the response, and "Finish <sessionId>" at the end.
+  Execute the command in the line variable.  The first word is always the user's sessionID.
+  To help keep track of what session we're responding to, print "Start <sessionID>" in the
+  beginning of the response, and "Finish <sessionID>" at the end.
 --------------------------------------------------------------------------------------------------*/
 static int executeCommand(
-    char *line,
-    char *sessionId)
+    Session session,
+    char *line)
 {
-    User user = findUser(sessionId);
+    User user = session->user;
     char loginName[100], password[100];
 
 #ifdef DEBUG
-    printf("%s %s, user=%s\n", sessionId, line, user == NULL? "none" : user->loginName);
+    printf("%s %s, user=%s\n", session->sessionID, line, user == NULL? "none" : user->loginName);
 #endif
     if(sscanf(line, "login %s %s", loginName, password) == 2) {
         if(user != NULL && user->loggedIn) {
@@ -114,7 +124,8 @@ static int executeCommand(
                     coPrintf("This user is already on-line in a different session.\n");
                 } else {
                     user->loggedIn = 1;
-                    strcpy(user->sessionId, sessionId);
+                    session->user = user;
+                    user->session = session;
                     coPrintf("Login successful.  You are a master of the universe!\n");
                 }
                 return 1;
@@ -127,6 +138,8 @@ static int executeCommand(
         } else {
             coPrintf("Logout successful... wimp.\n");
             user->loggedIn = 0;
+            user->session->user = NULL;
+            user->session = NULL;
         }
     } else if(!strcmp(line, "quit")) {
         coPrintf("goodbye.\n");
@@ -141,13 +154,47 @@ static int executeCommand(
   Log out a user when his session ends.
 --------------------------------------------------------------------------------------------------*/
 static void endSession(
-    char *sessionId)
+    char *sessionID)
 {
-    User user = findUser(sessionId);
+    Session session = findSession(sessionID);
+    User user;
+    Session prev, next;
 
-    if(user != NULL) {
-        user->loggedIn = 0;
+    if(session != NULL) {
+        user = session->user;
+        if(user != NULL) {
+            user->loggedIn = 0;
+            user->session = NULL;
+        }
+        prev = session->prev;
+        next = session->next;
+        if(prev != NULL) {
+            prev->next = next;
+        } else {
+            firstSession = next;
+        }
+        if(next != NULL) {
+            next->prev = prev;
+        }
+        free(session);
     }
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Create a new session object.
+--------------------------------------------------------------------------------------------------*/
+static Session createSession(
+    char *sessionID)
+{
+    Session session = (Session)calloc(1, sizeof(struct SessionStruct));
+
+    strcpy(session->sessionID, sessionID);
+    session->next = firstSession;
+    if(firstSession != NULL) {
+        firstSession->prev = session;
+    }
+    firstSession = session;
+    return session;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -156,15 +203,23 @@ static void endSession(
 static void executeFileCommands(void)
 {
     char line[256];
-    char *sessionId;
+    char *sessionID;
     int passed;
+    Session session;
 
     do {
-        sessionId = coStartResponse();
-        if(!readLine(line)) {
-            return;
+        sessionID = coStartResponse();
+        session = findSession(sessionID);
+        if(session == NULL) {
+            createSession(sessionID);
+            coPrintf("Legal commands are: login userName password, logout, and quit.\n");
+        } else {
+            if(!readLine(line)) {
+                return;
+            }
+            passed = executeCommand(session, line);
         }
-        passed = executeCommand(line, sessionId);
+        coPrintf("> ");
         coCompleteResponse();
     } while(passed);
 }

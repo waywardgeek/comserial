@@ -164,8 +164,7 @@ static coClient readMessage(
 #ifdef DEBUG
                     printf("Got sessionID %s, length %d\n", buf, (int)length);
 #endif
-                    length = write(xClient, "OK", 3);
-                    fsync(xClient);
+                    readyClient = client;
                 } else {
 #ifdef DEBUG
                     printf("Read message of length %d: '%s'\n", (int)length, buf);
@@ -189,8 +188,9 @@ static coClient readMessage(
 }
 
 /*--------------------------------------------------------------------------------------------------
-  This command waits for a completed message from a client, and then returns the sessionID of
-  that client.  Any calls to coPrintf after this call will direct the text to that client.
+  This command waits for a connection or completed message from a client, and then returns the
+  sessionID of that client.  Any calls to coPrintf after this call will direct the text to that
+  client.
 --------------------------------------------------------------------------------------------------*/
 char *coStartResponse(void)
 {
