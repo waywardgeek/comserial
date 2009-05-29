@@ -8,8 +8,8 @@ Developing a web-based application is broken into 3 parts:
 The passwdserver.c application should provide you with a very simple framework for building yor
 web based app. and login_cgi.c should provide a decent example for writing a CGI "script" in C.
 Please read comserver.h and comclient.h for a detailed description of the interface to the two
-libraries.
+libraries.  The client.c program is a command-line interface to your application, which you can
+run while users are accessing it through the web.
 
 Command Serializer is copyright 2009 by Bill Cox, all rights reserved.  It is made available to
 the public under the Lesser Gnu Public License (LGPL).
-

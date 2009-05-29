@@ -19,7 +19,7 @@ struct coClientStruct {
     char *message;
     uint messageSize, messageLength;
     uint messagePos;
-    char *sessionId;
+    char *sessionID;
 };
 
 static coClient *coClientTable;
@@ -138,7 +138,7 @@ static coClient readMessage(
         client = coClientTable[xClient];
         if(client != NULL) {
 #ifdef DEBUG
-            printf("Checking client %u:%s\n", xClient, client->sessionId);
+            printf("Checking client %u:%s\n", xClient, client->sessionID);
 #endif
             if(FD_ISSET(xClient, &readSockets)) {
                 length = read(xClient, buf, CO_MAX_MESSAGE_LENGTH);
@@ -150,21 +150,21 @@ static coClient readMessage(
                         /* I don't know why sometimes sockets that have ID_ISSET true can't be read yet */
                         /* Close client */
                         if(coEndSession != NULL) {
-                            coEndSession(client->sessionId);
+                            coEndSession(client->sessionID);
                         }
                         close(xClient);
                         free(client->message);
                         free(client);
                         coClientTable[xClient] = NULL;
                     }
-                } else if(client->sessionId == NULL) {
-                    /* Must be initial sessionId message */
-                    client->sessionId = (char *)calloc(length, sizeof(char));
-                    strcpy(client->sessionId, buf);
+                } else if(client->sessionID == NULL) {
+                    /* Must be initial sessionID message */
+                    client->sessionID = (char *)calloc(length, sizeof(char));
+                    strcpy(client->sessionID, buf);
 #ifdef DEBUG
-                    printf("Got sessionId %s, length %d\n", buf, (int)length);
+                    printf("Got sessionID %s, length %d\n", buf, (int)length);
 #endif
-                    write(xClient, "OK", 3);
+                    length = write(xClient, "OK", 3);
                     fsync(xClient);
                 } else {
 #ifdef DEBUG
@@ -189,7 +189,7 @@ static coClient readMessage(
 }
 
 /*--------------------------------------------------------------------------------------------------
-  This command waits for a completed message from a client, and then returns the sessionId of
+  This command waits for a completed message from a client, and then returns the sessionID of
   that client.  Any calls to coPrintf after this call will direct the text to that client.
 --------------------------------------------------------------------------------------------------*/
 char *coStartResponse(void)
@@ -202,7 +202,7 @@ char *coStartResponse(void)
     int xClient;
 
     if(!coServerStarted) {
-        return "sessionId";
+        return "sessionID";
     }
     do {
         maxSocket = coServerSockfd;
@@ -231,7 +231,7 @@ char *coStartResponse(void)
         client = readMessage(readSockets);
     } while(client == NULL);
     coCurrentClient = client;
-    return client->sessionId;
+    return client->sessionID;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -257,7 +257,7 @@ int coPrintf(
 {
     va_list ap;
     char buffer[CO_MAX_MESSAGE_LENGTH];
-    int length;
+    int length, bytesWritten;
 
     va_start(ap, format);
     length = vsnprintf(buffer, CO_MAX_MESSAGE_LENGTH, format, ap);
@@ -265,7 +265,7 @@ int coPrintf(
     //temp - fix this to use local write buffers that are driven with select
     // this will fail if the client is not ready for a write
     if(coServerStarted) {
-        write(coCurrentClient->sockfd, buffer, length);
+        bytesWritten = write(coCurrentClient->sockfd, buffer, length);
     } else {
         printf("%s", buffer);
     }
@@ -277,8 +277,10 @@ int coPrintf(
 --------------------------------------------------------------------------------------------------*/
 void coCompleteResponse(void)
 {
+    int length;
+
     if(coServerStarted) {
-        write(coCurrentClient->sockfd, "", 1);
+        length = write(coCurrentClient->sockfd, "", 1);
         fsync(coCurrentClient->sockfd);
         coCurrentClient->messageLength = 0;
         coCurrentClient->messagePos = 0;

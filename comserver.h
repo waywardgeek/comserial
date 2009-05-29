@@ -12,8 +12,8 @@
 
       char *coStartResponse(void);
       int coPrintf(char *format, ...);
-      coCompleteResponse(void);
-      char coGetc(void):
+      void coCompleteResponse(void);
+      int coGetc(void);
 
   The point of these functions is to act like the functions used in a typical console app: printf
   and getchar.  In fact, if you don't call coStartServer, coPrintf will just call printf, and
@@ -26,15 +26,16 @@
   cause the response message to be sent.  Note that empty responses will result in an empty
   message, so clients should expect a response to every message.
 
-  The server and initialize/closesthings with:
+  The server and initialize/closes things with:
 
-      int coStartServer(char *fileSocketPath);
+      void coStartServer(char *fileSocketPath);
       void coStopServer(void);
 
   Finally, you may want to know when a user session has ended.  Use coSetEndSessionCallback to
   register a callback function that will be called whenever a session ends.
 
-      void coSetEndSessionCallback((*endSession)(char *sessionId));
+      typedef void (*coEndSessionProc)(char *sessionID);
+      void coSetEndSessionCallback(coEndSessionProc endSession);
 
 --------------------------------------------------------------------------------------------------*/
 
@@ -44,5 +45,5 @@ char *coStartResponse(void);
 int coPrintf(char *format, ...);
 void coCompleteResponse(void);
 int coGetc(void);
-typedef void (*coEndSessionProc)(char *sessionId);
+typedef void (*coEndSessionProc)(char *sessionID);
 void coSetEndSessionCallback(coEndSessionProc endSession);
