@@ -20,6 +20,7 @@ struct coClientStruct {
     uint messageSize, messageLength;
     uint messagePos;
     char *sessionID;
+    coClient nextReadyClient;
 };
 
 static coClient *coClientTable;
@@ -29,6 +30,7 @@ static char *coSocketPath;
 static coClient coCurrentClient;
 static int coServerStarted = 0;
 static coEndSessionProc coEndSession = NULL;
+static coClient firstReadyClient = NULL;
 
 /*--------------------------------------------------------------------------------------------------
   Set a file descriptor to be non-blocking.  This allows accept to return right away, without
@@ -62,7 +64,6 @@ void coStartServer(
 
     unlink(fileSocketPath);
     coServerSockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    setSocketNonBlocking(coServerSockfd, 1);
     serverAddress.sun_family = AF_UNIX;
     strncpy(serverAddress.sun_path, fileSocketPath, 108);
     serverAddress.sun_path[108 - 1] = '\0';
@@ -124,12 +125,12 @@ static void acceptNewClient(void)
 }
 
 /*--------------------------------------------------------------------------------------------------
-  See if any message is complete, and if so, and return the client with a complete message.
+  See if any message is complete.  Append all clients with ready messages to the readyClient list.
 --------------------------------------------------------------------------------------------------*/
-static coClient readMessage(
+static void readMessage(
     fd_set readSockets)
 {
-    coClient client, readyClient = NULL;
+    coClient client;
     int xClient;
     char buf[CO_MAX_MESSAGE_LENGTH];
     ssize_t length;
@@ -146,7 +147,7 @@ static coClient readMessage(
                 printf("Just read %d bytes\n", (int)length);
 #endif
                 if(length <= 0) {
-                    if(length < 0 && errno != EAGAIN) {
+                    if(length <= 0 && errno != EAGAIN) {
                         /* I don't know why sometimes sockets that have ID_ISSET true can't be read yet */
                         /* Close client */
                         if(coEndSession != NULL) {
@@ -164,7 +165,8 @@ static coClient readMessage(
 #ifdef DEBUG
                     printf("Got sessionID %s, length %d\n", buf, (int)length);
 #endif
-                    readyClient = client;
+                    client->nextReadyClient = firstReadyClient;
+                    firstReadyClient = client;
                 } else {
 #ifdef DEBUG
                     printf("Read message of length %d: '%s'\n", (int)length, buf);
@@ -177,14 +179,14 @@ static coClient readMessage(
                     client->messageLength += length;
                     if(client->message[client->messageLength - 1] == '\0') {
                         /* Completed message */
-                        readyClient = client;
+                        client->nextReadyClient = firstReadyClient;
+                        firstReadyClient = client;
                         client->messagePos = 0;
                     }
                 }
             }
         }
     }
-    return readyClient;
 }
 
 /*--------------------------------------------------------------------------------------------------
@@ -204,7 +206,7 @@ char *coStartResponse(void)
     if(!coServerStarted) {
         return "sessionID";
     }
-    do {
+    while(firstReadyClient == NULL) {
         maxSocket = coServerSockfd;
         FD_ZERO(&readSockets);
         for(xClient = 0; xClient < coClientTableSize; xClient++) {
@@ -228,10 +230,11 @@ char *coStartResponse(void)
         if(FD_ISSET(coServerSockfd, &readSockets)) {
             acceptNewClient();
         }
-        client = readMessage(readSockets);
-    } while(client == NULL);
-    coCurrentClient = client;
-    return client->sessionID;
+        readMessage(readSockets);
+    }
+    coCurrentClient = firstReadyClient;
+    firstReadyClient = firstReadyClient->nextReadyClient;
+    return coCurrentClient->sessionID;
 }
 
 /*--------------------------------------------------------------------------------------------------
