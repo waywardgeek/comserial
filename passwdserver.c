@@ -204,7 +204,7 @@ static void executeFileCommands(void)
 {
     char line[256];
     char *sessionID;
-    int passed;
+    int passed = 1;
     Session session;
 
     do {
@@ -217,7 +217,7 @@ static void executeFileCommands(void)
             if(!readLine(line)) {
                 return;
             }
-            passed = executeCommand(session, line);
+            //passed = executeCommand(session, line);
         }
         coPrintf("> ");
         coCompleteResponse();

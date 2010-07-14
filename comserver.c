@@ -31,27 +31,8 @@ static coClient coCurrentClient;
 static int coServerStarted = 0;
 static coEndSessionProc coEndSession = NULL;
 static coClient firstReadyClient = NULL;
-
-/*--------------------------------------------------------------------------------------------------
-  Set a file descriptor to be non-blocking.  This allows accept to return right away, without
-  waiting for a connection to be made.
---------------------------------------------------------------------------------------------------*/
-static void setSocketNonBlocking(
-    int socket,
-    int value)
-{
-    int flags = fcntl(socket, F_GETFL);
-
-    if(value) {
-        flags |= O_NONBLOCK;
-    } else {
-        flags &= ~O_NONBLOCK;
-    }
-    if(fcntl(socket, F_SETFL, flags) < 0) {
-        perror("Trouble setting socket non-block mode");
-        exit(1);
-    }
-}
+static char coBuffer[CO_MAX_MESSAGE_LENGTH];
+static int coBufferPosition;
 
 /*--------------------------------------------------------------------------------------------------
   Start the server, and open the socket for listening.  Return non-zero on success.
@@ -96,7 +77,7 @@ void coStopServer(void)
 static int acceptConnection(void)
 {
     struct sockaddr_un clientAddress;
-    int length = sizeof(clientAddress);
+    socklen_t length = sizeof(clientAddress);
     int clientSockfd = accept(coServerSockfd, (struct sockaddr*)&clientAddress, &length);
 
     if(clientSockfd < 0)  {
@@ -125,6 +106,24 @@ static void acceptNewClient(void)
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Disconnect a client.
+--------------------------------------------------------------------------------------------------*/
+static void disconnectClient(
+    coClient client)
+{
+    if(coEndSession != NULL) {
+	coEndSession(client->sessionID);
+    }
+    if(client == coCurrentClient) {
+	coCurrentClient = NULL;
+    }
+    coClientTable[client->sockfd] = NULL;
+    close(client->sockfd);
+    free(client->message);
+    free(client);
+}
+
+/*--------------------------------------------------------------------------------------------------
   See if any message is complete.  Append all clients with ready messages to the readyClient list.
 --------------------------------------------------------------------------------------------------*/
 static void readMessage(
@@ -149,14 +148,7 @@ static void readMessage(
                 if(length <= 0) {
                     if(length <= 0 && errno != EAGAIN) {
                         /* I don't know why sometimes sockets that have ID_ISSET true can't be read yet */
-                        /* Close client */
-                        if(coEndSession != NULL) {
-                            coEndSession(client->sessionID);
-                        }
-                        close(xClient);
-                        free(client->message);
-                        free(client);
-                        coClientTable[xClient] = NULL;
+                        disconnectClient(client);
                     }
                 } else if(client->sessionID == NULL) {
                     /* Must be initial sessionID message */
@@ -252,6 +244,42 @@ int coGetc(void)
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Only if the buffer is full, flush it.  Then, append this data.
+--------------------------------------------------------------------------------------------------*/
+static void flushBuffer(void)
+{
+    int bytesWritten;
+
+    if(coCurrentClient == NULL) {
+	/* Must have died */
+	return;
+    }
+    bytesWritten = write(coCurrentClient->sockfd, coBuffer, coBufferPosition);
+    if(bytesWritten != coBufferPosition) {
+        disconnectClient(coCurrentClient);
+    }
+    coBufferPosition = 0;
+}
+
+/*--------------------------------------------------------------------------------------------------
+  Only if the buffer is full, flush it.  Then, append this data.
+--------------------------------------------------------------------------------------------------*/
+static void writeBufferedBytes(
+    char *buffer,
+    int length)
+{
+    if(length > CO_MAX_MESSAGE_LENGTH) {
+        perror("Write size too large.");
+        exit(1);
+    }
+    if(coBufferPosition + length >= CO_MAX_MESSAGE_LENGTH) {
+	flushBuffer();
+    }
+    memcpy(coBuffer + coBufferPosition, buffer, length);
+    coBufferPosition += length;
+}
+
+/*--------------------------------------------------------------------------------------------------
   Write a message to the client.  If coStartServer was never called, just call coPrintf.
 --------------------------------------------------------------------------------------------------*/
 int coPrintf(
@@ -260,7 +288,7 @@ int coPrintf(
 {
     va_list ap;
     char buffer[CO_MAX_MESSAGE_LENGTH];
-    int length, bytesWritten;
+    int length;
 
     va_start(ap, format);
     length = vsnprintf(buffer, CO_MAX_MESSAGE_LENGTH, format, ap);
@@ -268,7 +296,7 @@ int coPrintf(
     //temp - fix this to use local write buffers that are driven with select
     // this will fail if the client is not ready for a write
     if(coServerStarted) {
-        bytesWritten = write(coCurrentClient->sockfd, buffer, length);
+	writeBufferedBytes(buffer, length);
     } else {
         printf("%s", buffer);
     }
@@ -280,10 +308,9 @@ int coPrintf(
 --------------------------------------------------------------------------------------------------*/
 void coCompleteResponse(void)
 {
-    int length;
-
     if(coServerStarted) {
-        length = write(coCurrentClient->sockfd, "", 1);
+        writeBufferedBytes("", 1);
+	flushBuffer();
         fsync(coCurrentClient->sockfd);
         coCurrentClient->messageLength = 0;
         coCurrentClient->messagePos = 0;

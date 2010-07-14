@@ -8,12 +8,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <poll.h>
 #include "comclient.h"
 
 static char *coSessionId;
 static int coSockfd;
 static char *coMessage;
 static int coMessageSize;
+static char coBuffer[CO_MAX_MESSAGE_LENGTH];
+static int coBufferNextCharPos, coBufferLength;
 
 /*--------------------------------------------------------------------------------------------------
   Start the client.  Connect to the server's file socket, and return the greeting message.
@@ -26,7 +29,6 @@ char *coStartClient(
     struct sockaddr_un address;
     int len;
     int result;
-    char response[3];
 
     coSockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     address.sun_family = AF_UNIX;
@@ -73,6 +75,25 @@ void coSendMessage(
 }
 
 /*--------------------------------------------------------------------------------------------------
+  Read some bytes from the server, and return them one at a time.
+--------------------------------------------------------------------------------------------------*/
+static char readChar(void)
+{
+    struct pollfd pstruct = {coSockfd, POLLIN, 0};
+
+    if(coBufferNextCharPos < coBufferLength) {
+	return coBuffer[coBufferNextCharPos++];
+    }
+    poll(&pstruct, 1, -1);
+    coBufferNextCharPos = 0;
+    coBufferLength = read(coSockfd, coBuffer, CO_MAX_MESSAGE_LENGTH);
+    if(coBufferLength <= 0) {
+	perror("Cannot read from server");
+	exit(1);
+    }
+    return coBuffer[coBufferNextCharPos++];
+}
+/*--------------------------------------------------------------------------------------------------
   Send a message to the server.
 --------------------------------------------------------------------------------------------------*/
 char *coReadMessage(void)
@@ -81,10 +102,7 @@ char *coReadMessage(void)
     int messagePos = 0;
 
     do {
-        if(read(coSockfd, &c, 1) != 1) {
-            perror("Cannot read from server");
-            exit(1);
-        }
+	c = readChar();
         if(messagePos + 1 == coMessageSize) {
             coMessageSize <<= 1;
             coMessage = (char *)realloc(coMessage, coMessageSize*sizeof(char));

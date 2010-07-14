@@ -11,7 +11,6 @@ int main(void)
 {
     char *input, *session, *userName, *password, *response;
     char *logoutTemplate, *loginHTML;
-    FILE *f;
 
     cgiEnableDebug("/tmp/log");
     cgiPrintf("Content-Type:text/html;charset=iso-8859-1\n");

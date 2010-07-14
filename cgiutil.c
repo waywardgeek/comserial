@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <ctype.h>
 #include "cgiutil.h"
 
 typedef unsigned int uint;
@@ -12,7 +13,6 @@ typedef unsigned int uint;
 static char *varBuf = NULL, *valueBuf = NULL;
 static long varBufSize = 42, valueBufSize = 42;
 static FILE *debugFile = NULL;
-static int initialized = 0;
 
 /*--------------------------------------------------------------------------------------------------
   Enable debug logging to the file.

@@ -10,7 +10,6 @@ int main(void)
 {
     char *input, *session, *response;
     char *loginTemplate, *logoutHTML;
-    FILE *f;
 
     cgiEnableDebug("/tmp/log");
     cgiPrintf("Content-Type:text/html;charset=iso-8859-1\n");
