@@ -217,7 +217,7 @@ static void executeFileCommands(void)
             if(!readLine(line)) {
                 return;
             }
-            //passed = executeCommand(session, line);
+            passed = executeCommand(session, line);
         }
         coPrintf("> ");
         coCompleteResponse();
