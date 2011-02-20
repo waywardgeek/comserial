@@ -1,7 +1,7 @@
 /*--------------------------------------------------------------------------------------------------
   The client communicates with the server using:
 
-      coSendMessage(char *format, ...);
+      void coSendMessage(char *format, ...);
       char *coReadMessage(void);
 
   Typically, a message will be just like a command that would normally be issued through a console
@@ -16,6 +16,19 @@
 
   The server is expected to send an initial hello message of some sort, which is returned by
   coStartClient.
+
+  The client may also want to receive messages from the server asyncronously.  This can be used
+  to enable communication between clients in a bus-style, for example.  Typically, the client will
+  have a listening thread devoted to this.  Commands are:
+
+      char *coStartListener(char *fileSocketPath, char *sessionId);
+      void coStopListener(void);
+      char *coWaitForMessage(void);
+      void coSendResponse(char *format, ...);
+
+  A client can be a pure listener, without needing to call coStartClient.  If a client is both,
+  it needs to use the same sessionId in coStartClient and coStartListener.
+
 --------------------------------------------------------------------------------------------------*/
 
 /* Largest string that can be created with coSendMessage. */
@@ -26,3 +39,9 @@ void coSendMessage(char *format, ...);
 /* Note that a pointer to a static buffer is returned, which will be over-written by the next
    call to coReadMessage.  It ok to modify the return value in-place. */
 char *coReadMessage(void);
+
+/* Listener functions */
+char *coStartListener(char *fileSocketPath, char *sessionId);
+void coStopListener(void);
+char *coWaitForMessage(void);
+void coSendResponse(char *format, ...);

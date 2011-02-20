@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "cgiutil.h"
 #include "comclient.h"
 
 #define NUM_LOOPS 1000000
@@ -14,7 +13,7 @@ int main(
     char **argv)
 {
     char *response;
-    char *sessionID = cgiGenerateRandomID(20);
+    char *sessionID = "benchmark";
     int i;
 
     if(argc != 2) {
