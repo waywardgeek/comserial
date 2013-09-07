@@ -66,7 +66,7 @@ char *cgiEncode(
         c = *string++;
         if(c == ' ') {
             *p++ = '+';
-        } else if(!isalnum(c) && c != '.' && c != '_') {
+        } else if(!isalnum((unsigned char)c) && c != '.' && c != '_') {
             *p++ = '%';
             sprintf(p, "%02x", (unsigned char)c);
             p += 2;
@@ -100,7 +100,7 @@ char *cgiEncodeArray(
         c = *array++;
         if(c == ' ') {
             *p++ = '+';
-        } else if(!isalnum(c) && c != '.' && c != '_') {
+        } else if(!isalnum((unsigned char)c) && c != '.' && c != '_') {
             *p++ = '%';
             sprintf(p, "%02x", (unsigned char)c);
             p += 2;
@@ -299,7 +299,7 @@ static uint countArgs(
                 temp++;
                 c = *temp;
             }
-            if(isdigit(c)) {
+            if(isdigit((unsigned char)c)) {
                 temp++;
                 xArg = c - '0';
                 if (xArg >= maxArg) {
@@ -386,7 +386,7 @@ static void wrtemp(
                 caps = 1;
                 c = *++string;
             }
-            if(isdigit(c)) {
+            if(isdigit((unsigned char)c)) {
                 string++;
                 xArg = c - '0';
                 if(xArg >= sArg) {
@@ -395,17 +395,17 @@ static void wrtemp(
                 }
                 if (*args[xArg]) {
                     if(lowerCase) {
-                        appendChar((char)tolower(*(args[xArg])));
+                        appendChar((unsigned char)tolower((unsigned char)*(args[xArg])));
                         appendString((args[xArg]) + 1);
                         lowerCase = 0;
                     } else if(upperCase) {
-                        appendChar((char)toupper(*(args[xArg])));
+                        appendChar((unsigned char)toupper((unsigned char)*(args[xArg])));
                         appendString((args[xArg]) + 1);
                         upperCase = 0;
                     } else if(caps) {
                         arg = args[xArg];
                         while(*arg) {
-                            appendChar((char)toupper(*arg));
+                            appendChar((unsigned char)toupper((unsigned char)*arg));
                             arg++;
                         }
                         caps = 0;
