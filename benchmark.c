@@ -12,7 +12,6 @@ int main(
     int argc,
     char **argv)
 {
-    char *response;
     char *sessionID = "benchmark";
     int i;
 
@@ -20,14 +19,14 @@ int main(
         printf("Usage: %s fileSocketPath\n", argv[0]);
         return 1;
     }
-    response = coStartClient(argv[1], sessionID);
+    coStartClient(argv[1], sessionID);
     for(i = 0; i < NUM_LOOPS; i++) {
 	if(i & 1) {
 	    coSendMessage("login admin donttell");
-	    response = coReadMessage();
+	    coReadMessage();
 	} else {
 	    coSendMessage("logout");
-	    response = coReadMessage();
+	    coReadMessage();
 	}
     }
     coStopClient();
