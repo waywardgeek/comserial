@@ -2,8 +2,9 @@ Command Serializer is intended to help C programmers write custom Web-based appl
 Developing a web-based application is broken into 3 parts:
 
 1) Write your application as a console application, using getchar, and printf.
-2) Link in libcomserver.a into your application, and modify your code to use coGetc and coPrintf.
-3) Write an Apache CGI "script", based on the example login_cgi.c file, which links in libcomclient.a
+2) Add #include <comsever.h> to your code
+3) Link in libcomserver.a into your application
+4) Modify your code to use coGetc and coPrintf rather than getc and printf
 
 The passwdserver.c application should provide you with a very simple framework for building yor
 web based app. and login_cgi.c should provide a decent example for writing a CGI "script" in C.
